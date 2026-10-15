@@ -1,0 +1,22 @@
+{
+  "name": "rainsense-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RainSense — Smart Rainfall & Environmental Monitoring System Monorepo",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"SERVER,WEB\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:web\"",
+    "dev:server": "npm run --workspace=@rainsense/server dev",
+    "dev:web": "npm run --workspace=@rainsense/web dev",
+    "build": "npm run build --workspace=@rainsense/shared && npm run build --workspace=@rainsense/server && npm run build --workspace=@rainsense/web",
+    "test": "npm run test --workspace=@rainsense/server",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.5.4"
+  }
+}
