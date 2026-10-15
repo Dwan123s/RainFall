@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #F8FAFC;
+    --foreground: #0F172A;
+    --card: #FFFFFF;
+    --card-foreground: #0F172A;
+    --border: #E2E8F0;
+    --accent: #0891B2;
+    --accent-foreground: #FFFFFF;
+  }
+
+  .dark {
+    --background: #090D16;
+    --foreground: #F1F5F9;
+    --card: #111A2E;
+    --card-foreground: #F1F5F9;
+    --border: #1E293B;
+    --accent: #06B6D4;
+    --accent-foreground: #090D16;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  min-height: 100vh;
+}
+
+/* Custom smooth scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Pulse animation for real-time live indicator */
+@keyframes pulse-live {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.15);
+  }
+}
+
+.animate-pulse-live {
+  animation: pulse-live 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

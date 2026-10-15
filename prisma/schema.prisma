@@ -1,0 +1,148 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         String   @default("ADMIN") // ADMIN, VIEWER
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Device {
+  id              String               @id @default(uuid())
+  deviceId        String               @unique // Hardware ID, e.g. RS-ESP32S3-01
+  name            String
+  location        String               @default("Trạm quan trắc trung tâm")
+  timezone        String               @default("Asia/Ho_Chi_Minh")
+  firmwareVersion String               @default("1.0.0")
+  isOnline        Boolean              @default(false)
+  lastSeen        DateTime?
+  wifiRssi        Int?
+  uptime          Int?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  configuration   DeviceConfiguration?
+  measurements    Measurement[]
+  rainEvents      RainEvent[]
+  alertRules      AlertRule[]
+  alerts          Alert[]
+  commands        DeviceCommand[]
+
+  @@map("devices")
+}
+
+model DeviceConfiguration {
+  id             String   @id @default(uuid())
+  deviceId       String   @unique
+  rainMmPerTip   Float    @default(0.25) // mm per bucket tip
+  sensorInterval Int      @default(10)   // Sensor reading interval in seconds
+  mqttInterval   Int      @default(30)   // MQTT publication interval in seconds
+  updatedAt      DateTime @updatedAt
+
+  device         Device   @relation(fields: [deviceId], references: [deviceId], onDelete: Cascade)
+
+  @@map("device_configurations")
+}
+
+model Measurement {
+  id            String   @id @default(uuid())
+  deviceId      String
+  messageId     String   @unique // Deduplication ID
+  timestamp     DateTime
+  temperature   Float    // °C
+  humidity      Float    // %
+  pressure      Float    // hPa
+  dewPoint      Float?   // °C
+  wifiRssi      Int?     // dBm
+  uptime        Int?     // seconds
+  totalRainTips Int?     // cumulative tips
+  rainRate      Float?   // mm/h
+  createdAt     DateTime @default(now())
+
+  device        Device   @relation(fields: [deviceId], references: [deviceId], onDelete: Cascade)
+
+  @@index([deviceId, timestamp])
+  @@index([timestamp])
+  @@map("measurements")
+}
+
+model RainEvent {
+  id                String   @id @default(uuid())
+  deviceId          String
+  eventId           String   @unique // messageId / deduplication
+  timestamp         DateTime
+  tipCount          Int      @default(1)
+  calibrationFactor Float    // mm per tip at time of event
+  rainfallMm        Float    // tipCount * calibrationFactor
+  createdAt         DateTime @default(now())
+
+  device            Device   @relation(fields: [deviceId], references: [deviceId], onDelete: Cascade)
+
+  @@index([deviceId, timestamp])
+  @@index([timestamp])
+  @@map("rain_events")
+}
+
+model AlertRule {
+  id          String   @id @default(uuid())
+  deviceId    String
+  alertType   String   // HEAVY_RAIN, HIGH_TEMPERATURE, LOW_TEMPERATURE, HIGH_HUMIDITY, LOW_HUMIDITY, DEVICE_OFFLINE, MISSING_TELEMETRY, SENSOR_ERROR, MQTT_FAILURE
+  threshold   Float
+  comparison  String   // GREATER_THAN, LESS_THAN
+  enabled     Boolean  @default(true)
+  severity    String   @default("WARNING") // INFO, WARNING, CRITICAL
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  device      Device   @relation(fields: [deviceId], references: [deviceId], onDelete: Cascade)
+
+  @@index([deviceId, alertType])
+  @@map("alert_rules")
+}
+
+model Alert {
+  id         String    @id @default(uuid())
+  deviceId   String
+  type       String
+  severity   String    // INFO, WARNING, CRITICAL
+  message    String
+  isRead     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  device     Device    @relation(fields: [deviceId], references: [deviceId], onDelete: Cascade)
+
+  @@index([deviceId, createdAt])
+  @@index([isRead])
+  @@map("alerts")
+}
+
+model DeviceCommand {
+  id             String    @id @default(uuid())
+  deviceId       String
+  commandId      String    @unique
+  action         String    // reboot, set_config, calibrate_rain, ping
+  payload        Json      // Command arguments
+  status         String    @default("PENDING") // PENDING, APPLIED, FAILED, TIMED_OUT
+  errorMessage   String?
+  createdAt      DateTime  @default(now())
+  acknowledgedAt DateTime?
+
+  device         Device    @relation(fields: [deviceId], references: [deviceId], onDelete: Cascade)
+
+  @@index([deviceId, status])
+  @@map("device_commands")
+}

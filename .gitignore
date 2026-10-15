@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+*/node_modules/
+.pnp
+.pnp.js
+
+# Build artifacts & caches
+.next/
+dist/
+*/dist/
+build/
+out/
+.turbo/
+
+# Environment files
+.env
+.env*.local
+!.env.example
+!.env.test
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Editor & OS files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Firmware build caches
+firmware/**/.pio/
+firmware/**/.vscode/
+firmware/**/build/
+
+# Prisma generated artifacts (if custom)
+prisma/*.db
+prisma/*.db-journal
