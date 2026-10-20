@@ -10,6 +10,7 @@ import { initMqttClient, getMqttInfo } from './mqtt/client';
 import { stationSimulator } from './mqtt/simulator';
 import { apiRouter } from './routes/api';
 import { alertService } from './services/alert.service';
+import { renderStatusPageHtml } from './views/statusPage';
 
 const app = express();
 const server = http.createServer(app);
@@ -39,6 +40,17 @@ if (env.NODE_ENV !== 'production') {
     next();
   });
 }
+
+// Visual Status Dashboard for Backend (matches screenshot UI)
+app.get('/', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(renderStatusPageHtml());
+});
+
+app.get('/status-page', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(renderStatusPageHtml());
+});
 
 // Health check endpoint with EMQX & Aiven connectivity summary
 app.get('/health', (req: Request, res: Response) => {
