@@ -8,44 +8,47 @@
 
 **RainSense** là hệ thống giám sát khí tượng và đo mưa thông minh quy chuẩn công nghiệp, kết nối phần cứng vi điều khiển **ESP32-S3**, cảm biến môi trường kỹ thuật số **BME280** (Nhiệt độ, Độ ẩm, Khí áp), và cảm biến **Hall A3144** gắn trên phễu lật đo mưa (Tipping Bucket Rain Gauge).
 
-Dự án được xây dựng theo kiến trúc monorepo hoàn chỉnh gồm:
-1. **Frontend (`apps/web`):** Next.js App Router, Tailwind CSS, Recharts, TanStack Query, React Hook Form, Dark/Light mode, giao diện tiếng Việt chuyên nghiệp.
-2. **Backend (`apps/server`):** Node.js TypeScript API, Socket.IO truyền phát thời gian thực, MQTT.js kết nối **EMQX MQTT Broker** (TCP/TLS), Zod validation, khử trùng lặp bản tin idempotent.
-3. **Shared (`packages/shared`):** Định nghĩa kiểu TypeScript, schema Zod, công thức khí tượng học (Magnus-Tetens, Rothfusz, cửa sổ trượt).
-4. **Cơ sở dữ liệu (`prisma`):** **Aiven PostgreSQL Cloud**, Prisma ORM, migrations, seed script.
-5. **Giả lập (`StationSimulator`):** Tích hợp chế độ DEMO MODE tạo dữ liệu khí tượng thực tế và thử nghiệm nhịp lật đo mưa tức thì.
+Dự án được phân chia độc lập và rõ ràng thành 2 thư mục chính:
+1. **`frontend/`:** Giao diện Next.js 14 App Router, Tailwind CSS, Recharts, TanStack Query, React Hook Form, Dark/Light mode, độc lập 100% (dễ dàng deploy lên Vercel/Render).
+2. **`backend/`:** Node.js Express API, Socket.IO truyền phát thời gian thực, MQTT.js kết nối **EMQX MQTT Broker** (TCP/TLS), Prisma ORM kết nối **Aiven PostgreSQL Cloud**, Zod validation, khử trùng lặp bản tin idempotent.
+3. **`firmware/`:** Mã nguồn nhúng Arduino C++ cho vi điều khiển ESP32-S3.
+4. **`docs/`:** Tài liệu kiến trúc, hướng dẫn triển khai Render, hướng dẫn cấu hình EMQX & Aiven.
 
 ---
 
-## 🏛️ Kiến Trúc Hệ Thống (System Architecture)
+## 🏛️ Cấu Trúc Dự Án (Project Structure)
 
 ```
-[ ESP32-S3 + BME280 + A3144 Hall ]
-                │
-                ▼  (Wi-Fi / MQTT 1883 hoặc MQTTS TLS 8883)
-      [ EMQX MQTT Broker ]
-                │
-                ▼  (Server-Side Subscription & Ingestion)
-     [ Node.js Backend Server ] ────── (Idempotent Deduplication) ──────► [ Aiven PostgreSQL Cloud ]
-                │
-                ▼  (Socket.IO Realtime Broadcast)
-  [ RainSense Next.js Web Dashboard ]
+IOTPROJECT/
+├── backend/                  # Server Node.js + Express + Socket.IO + EMQX MQTT
+│   ├── src/                  # Mã nguồn Backend (API, Controllers, Services, MQTT)
+│   ├── prisma/               # Cấu trúc cơ sở dữ liệu Prisma (PostgreSQL / Aiven)
+│   ├── .env.example          # File mẫu cấu hình backend
+│   └── package.json          # Dependencies & Scripts độc lập của backend
+├── frontend/                 # Giao diện Web Dashboard Next.js 14
+│   ├── app/                  # Next.js App Router (Overview, Rainfall, Environmental, Alerts)
+│   ├── components/           # UI Components
+│   ├── lib/                  # Utilities & API Client
+│   ├── .env.example          # File mẫu cấu hình frontend
+│   └── package.json          # Dependencies & Scripts độc lập của frontend
+├── firmware/                 # Firmware ESP32-S3 (Arduino IDE)
+├── docs/                     # Tài liệu hướng dẫn kỹ thuật & Deploy
+├── .env.example              # File mẫu biến môi trường gốc
+├── render.yaml               # File cấu hình tự động deploy lên Render
+└── package.json              # Quản lý chạy đồng thời toàn bộ dự án
 ```
 
 ---
 
 ## 🚀 Hướng Dẫn Cài Đặt & Chạy Ứng Dụng (Quick Start)
 
-### 1. Yêu cầu môi trường
-- **Node.js:** v18.0.0+ hoặc v20.x LTS
-- **npm:** v9.x+
-
-### 2. Cài đặt các gói phụ thuộc (Monorepo Workspaces)
+### 1. Cài đặt các gói phụ thuộc
+Tại thư mục gốc dự án:
 ```powershell
 npm install
 ```
 
-### 3. Cấu hình biến môi trường
+### 2. Cấu hình biến môi trường
 File `.env` mẫu đã được cấu hình sẵn tại gốc dự án (`.env.example` và `.env`):
 ```env
 # Database Aiven PostgreSQL (Bắt buộc có ?sslmode=require)
@@ -58,48 +61,41 @@ MQTT_PASSWORD=""
 DEMO_MODE=false
 ```
 
-### 4. Kiểm tra kết nối hạ tầng (Aiven & EMQX)
+### 3. Kiểm tra kết nối hạ tầng (Aiven & EMQX)
 Chạy lệnh chẩn đoán tự động:
 ```powershell
 npm run test:conn
 ```
 
-### 5. Khởi tạo cấu trúc bảng trên Aiven Database
+### 4. Khởi tạo cấu trúc bảng trên Aiven Database
 ```powershell
 npm run db:push
 npm run db:seed
 ```
 
-### 6. Khởi động hệ thống
-Chạy đồng thời cả Backend Server và Frontend Next.js chỉ với 1 câu lệnh:
+### 5. Khởi động hệ thống phát triển
+
+**Cách 1: Khởi động cả Frontend & Backend đồng thời từ thư mục gốc:**
 ```powershell
 npm run dev
 ```
+
+**Cách 2: Khởi động độc lập từng phần:**
+- Chạy Backend: `cd backend && npm run dev` (hoặc `npm run dev:backend`)
+- Chạy Frontend: `cd frontend && npm run dev` (hoặc `npm run dev:frontend`)
+
 - **Web Dashboard:** [http://localhost:3000](http://localhost:3000)
 - **Backend API & Socket.IO:** [http://localhost:5000](http://localhost:5000)
 - **Health Check & Diagnostics:** [http://localhost:5000/health](http://localhost:5000/health)
 
 ---
 
-## 📊 Các Trang Tính Năng Chính (Core Pages)
-
-| Trang | Đường dẫn | Mô tả chức năng |
-|---|---|---|
-| **Tổng quan** | `/overview` | Trạng thái trạm, 4 thẻ đo môi trường tức thời, biểu đồ thời gian thực, tổng hợp mưa, sức khỏe phần cứng |
-| **Phân tích mưa** | `/rainfall` | Thống kê tích lũy (hôm nay, hôm qua, 24h, 7 ngày, tháng), cường độ mưa đỉnh, xung lật cảm biến Hall A3144 |
-| **Môi trường** | `/environmental` | Biến thiên nhiệt độ, độ ẩm, áp suất, điểm sương (Dew Point), tương quan và xu hướng khí áp 3 giờ |
-| **Quản lý trạm** | `/devices` | Danh sách thiết bị, hiệu chuẩn mm/tip theo từng trạm, quy trình Command & Ack điều khiển từ xa |
-| **Cảnh báo** | `/alerts` | Cấu hình ngưỡng cảnh báo (mưa lớn, nhiệt độ cao/thấp), danh sách sự kiện, xác nhận đã xử lý |
-| **Dữ liệu lịch sử** | `/history` | Bảng dữ liệu phân trang máy chủ, bộ lọc thời gian, đồ thị biến thiên, xuất báo cáo CSV |
-| **Cài đặt** | `/settings` | Chuyển đổi linh hoạt giữa LIVE MODE và DEMO MODE, kiểm tra kết nối Broker MQTT |
-
----
-
 ## 🛠️ Tài Liệu Kỹ Thuật
 
-1. **Hướng dẫn kết nối EMQX & Aiven:** Xem chi tiết tại [docs/EMQX_AIVEN_GUIDE.md](docs/EMQX_AIVEN_GUIDE.md).
-2. **Sơ đồ đấu nối & Mã nguồn ESP32-S3:** Xem chi tiết tại [docs/ESP32_FIRMWARE_GUIDE.md](docs/ESP32_FIRMWARE_GUIDE.md).
-3. **Quy chuẩn Bản tin MQTT (Topic & JSON):** Xem chi tiết tại [docs/MQTT_SPECIFICATION.md](docs/MQTT_SPECIFICATION.md).
+1. **Hướng dẫn Deploy lên Render:** Xem chi tiết tại [docs/DEPLOY_TO_RENDER.md](docs/DEPLOY_TO_RENDER.md).
+2. **Hướng dẫn kết nối EMQX & Aiven:** Xem chi tiết tại [docs/EMQX_AIVEN_GUIDE.md](docs/EMQX_AIVEN_GUIDE.md).
+3. **Sơ đồ đấu nối & Mã nguồn ESP32-S3:** Xem chi tiết tại [docs/ESP32_FIRMWARE_GUIDE.md](docs/ESP32_FIRMWARE_GUIDE.md).
+4. **Quy chuẩn Bản tin MQTT (Topic & JSON):** Xem chi tiết tại [docs/MQTT_SPECIFICATION.md](docs/MQTT_SPECIFICATION.md).
 
 ---
 

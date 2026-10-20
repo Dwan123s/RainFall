@@ -1,25 +1,27 @@
 {
-  "name": "rainsense-monorepo",
+  "name": "rainsense-project",
   "version": "1.0.0",
   "private": true,
-  "description": "RainSense — Smart Rainfall & Environmental Monitoring System Monorepo",
+  "description": "RainSense — Smart Rainfall & Environmental Monitoring System",
   "workspaces": [
-    "packages/*",
-    "apps/*"
+    "frontend",
+    "backend"
   ],
   "scripts": {
-    "dev": "concurrently -n \"SERVER,WEB\" -c \"blue,green\" \"npm run dev:server\" \"npm run dev:web\"",
-    "dev:server": "npm run --workspace=@rainsense/server dev",
-    "dev:web": "npm run --workspace=@rainsense/web dev",
-    "build": "npm run build --workspace=@rainsense/shared && npm run build --workspace=@rainsense/server && npm run build --workspace=@rainsense/web",
-    "build:server": "npm run build --workspace=@rainsense/shared && npm run --workspace=@rainsense/server prisma:generate && npm run build --workspace=@rainsense/server",
-    "start:server": "npm run --workspace=@rainsense/server start",
-    "test": "npm run test --workspace=@rainsense/server",
-    "test:conn": "npm run --workspace=@rainsense/server test:conn",
-    "db:push": "npm run --workspace=@rainsense/server db:push",
-    "db:seed": "npm run --workspace=@rainsense/server db:seed",
-    "db:studio": "npm run --workspace=@rainsense/server db:studio",
-    "lint": "tsc --noEmit --project packages/shared/tsconfig.json && tsc --noEmit --project apps/server/tsconfig.json && tsc --noEmit --project apps/web/tsconfig.json"
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,green\" \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "build": "npm run build --workspace=backend && npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "start:backend": "npm run start --workspace=backend",
+    "start:frontend": "npm run start --workspace=frontend",
+    "test": "npm run test --workspace=backend",
+    "test:conn": "npm run test:conn --workspace=backend",
+    "db:push": "npm run db:push --workspace=backend",
+    "db:seed": "npm run db:seed --workspace=backend",
+    "db:studio": "npm run db:studio --workspace=backend",
+    "lint": "tsc --noEmit --project backend/tsconfig.json && tsc --noEmit --project frontend/tsconfig.json"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

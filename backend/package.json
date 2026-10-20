@@ -1,0 +1,42 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "RainSense IoT Backend API, EMQX MQTT Subscriber, and Socket.IO Engine",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "prisma generate --schema=prisma/schema.prisma && tsc",
+    "start": "node dist/index.js",
+    "test:conn": "tsx src/scripts/test-connections.ts",
+    "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
+    "prisma:push": "prisma db push --schema=prisma/schema.prisma",
+    "prisma:seed": "tsx src/db/seed.ts",
+    "db:push": "prisma db push --schema=prisma/schema.prisma",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:studio": "prisma studio --schema=prisma/schema.prisma",
+    "test": "tsx --test src/tests/rainfall.test.ts src/tests/deduplication.test.ts src/tests/offline.test.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.1",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "mqtt": "^5.10.1",
+    "pino": "^9.4.0",
+    "pino-pretty": "^11.2.2",
+    "socket.io": "^4.7.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.14.9",
+    "prisma": "^5.19.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  }
+}
