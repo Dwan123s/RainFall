@@ -136,6 +136,15 @@ export function renderStatusPageHtml(): string {
       background: #ef4444;
       box-shadow: 0 0 12px #ef4444;
     }
+    .status-sub {
+      display: block;
+      font-size: 11px;
+      color: #94a3b8;
+      font-weight: 500;
+      margin-top: 8px;
+      word-break: break-all;
+      line-height: 1.35;
+    }
     @keyframes pulse-ring {
       0% { transform: scale(1); opacity: 0.8; }
       100% { transform: scale(1.8); opacity: 0; }
@@ -245,6 +254,7 @@ export function renderStatusPageHtml(): string {
           <span class="status-dot"></span>
           <span id="db-text">DISCONNECTED</span>
         </div>
+        <div id="db-sub" class="status-sub">Đang kiểm tra kết nối...</div>
       </div>
 
       <!-- MQTT Status -->
@@ -254,6 +264,7 @@ export function renderStatusPageHtml(): string {
           <span class="status-dot"></span>
           <span id="mqtt-text">DISCONNECTED</span>
         </div>
+        <div id="mqtt-sub" class="status-sub">Đang kết nối Broker...</div>
       </div>
     </div>
 
@@ -305,23 +316,34 @@ export function renderStatusPageHtml(): string {
           // Database Status
           const dbEl = document.getElementById('db-status');
           const dbTxt = document.getElementById('db-text');
+          const dbSub = document.getElementById('db-sub');
           if (d.database && d.database.connected) {
             dbEl.className = 'status-value status-connected';
             dbTxt.textContent = 'CONNECTED';
+            dbSub.textContent = (d.database.type || 'Aiven PostgreSQL') + ' (' + (d.database.tablesCount || 0) + ' bảng)';
+            dbSub.style.color = '#10b981';
           } else {
             dbEl.className = 'status-value status-disconnected';
             dbTxt.textContent = 'DISCONNECTED';
+            dbSub.textContent = d.database.endpoint ? d.database.endpoint : 'Chưa kết nối';
+            dbSub.style.color = '#f87171';
           }
 
           // MQTT Status
           const mqttEl = document.getElementById('mqtt-status');
           const mqttTxt = document.getElementById('mqtt-text');
+          const mqttSub = document.getElementById('mqtt-sub');
           if (d.mqtt && (d.mqtt.connected || d.mqtt.status === 'CONNECTED')) {
             mqttEl.className = 'status-value status-connected';
             mqttTxt.textContent = 'CONNECTED';
+            mqttSub.textContent = d.mqtt.broker || 'Đã kết nối';
+            mqttSub.style.color = '#10b981';
           } else {
             mqttEl.className = 'status-value status-disconnected';
             mqttTxt.textContent = 'DISCONNECTED';
+            const errMsg = d.mqtt.lastError ? (d.mqtt.hint || d.mqtt.lastError) : (d.mqtt.broker || 'Chưa thể kết nối tới Broker');
+            mqttSub.textContent = errMsg;
+            mqttSub.style.color = '#f87171';
           }
         }
       } catch (e) {

@@ -41,8 +41,8 @@ const EnvSchema = z.object({
   MQTT_TOPIC_PREFIX: z.string().default('weather'),
   MQTT_REJECT_UNAUTHORIZED: z
     .string()
-    .default('true')
-    .transform((val) => val.toLowerCase() !== 'false' && val !== '0'),
+    .default('false')
+    .transform((val) => val.toLowerCase() === 'true' || val === '1'),
   MQTT_CA_CERT: z.string().optional().default(''),
   MQTT_KEEPALIVE: z.string().default('60').transform((val) => parseInt(val, 10)),
   MQTT_CONNECT_TIMEOUT: z.string().default('10000').transform((val) => parseInt(val, 10)),

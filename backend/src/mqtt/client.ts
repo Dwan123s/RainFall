@@ -11,6 +11,8 @@ let client: MqttClient | null = null;
 let isConnected = false;
 let isConnecting = false;
 let subscribedTopics: string[] = [];
+let lastMqttError = '';
+let lastMqttHint = '';
 
 /**
  * Normalizes broker URL to ensure valid MQTT protocol schema
@@ -136,6 +138,8 @@ export function initMqttClient(): MqttClient | null {
     client.on('connect', () => {
       isConnected = true;
       isConnecting = false;
+      lastMqttError = '';
+      lastMqttHint = '';
       logger.info({ broker: brokerUrl }, 'EMQX MQTT Connection established successfully.');
 
       const prefix = env.MQTT_TOPIC_PREFIX;
@@ -187,6 +191,9 @@ export function initMqttClient(): MqttClient | null {
       } else if (err.message.includes('Not authorized') || err.code === 134 || err.code === 135 || err.code === 4 || err.code === 5) {
         hint = 'EMQX Authentication failed. Check MQTT_USERNAME and MQTT_PASSWORD in .env';
       }
+
+      lastMqttError = err.message;
+      lastMqttHint = hint;
 
       logger.warn({ message: err.message, code: err.code, hint }, `EMQX MQTT Error: ${err.message}`);
     });
@@ -255,7 +262,9 @@ export function getMqttInfo() {
     topicPrefix: env.MQTT_TOPIC_PREFIX,
     subscribedTopics,
     hasAuth: Boolean(env.MQTT_USERNAME),
-    tlsStrict: env.MQTT_REJECT_UNAUTHORIZED
+    tlsStrict: env.MQTT_REJECT_UNAUTHORIZED,
+    lastError: lastMqttError,
+    hint: lastMqttHint
   };
 }
 
