@@ -17,7 +17,24 @@ let subscribedTopics: string[] = [];
  */
 export function normalizeBrokerUrl(url: string): string {
   if (!url) return '';
-  const trimmed = url.trim();
+  let trimmed = url.trim();
+
+  // Automatically fix if user accidentally pasted https:// or http:// from browser address bar
+  if (trimmed.startsWith('https://')) {
+    trimmed = trimmed.substring('https://'.length);
+    if (!trimmed.includes(':')) {
+      return `mqtts://${trimmed}:8883`;
+    }
+    return `mqtts://${trimmed}`;
+  }
+  if (trimmed.startsWith('http://')) {
+    trimmed = trimmed.substring('http://'.length);
+    if (!trimmed.includes(':')) {
+      return `mqtt://${trimmed}:1883`;
+    }
+    return `mqtt://${trimmed}`;
+  }
+
   if (
     trimmed.startsWith('mqtt://') ||
     trimmed.startsWith('mqtts://') ||
@@ -29,9 +46,9 @@ export function normalizeBrokerUrl(url: string): string {
   ) {
     return trimmed;
   }
-  // If port 8883 or 8884 is specified, default to tls://
+  // If port 8883 or 8884 is specified, default to mqtts://
   if (trimmed.includes(':8883') || trimmed.includes(':8884')) {
-    return `tls://${trimmed}`;
+    return `mqtts://${trimmed}`;
   }
   // Otherwise default to mqtt://
   return `mqtt://${trimmed}`;
@@ -41,11 +58,12 @@ export function normalizeBrokerUrl(url: string): string {
  * Builds MQTT client connection options with EMQX & TLS support
  */
 export function buildMqttOptions(overrides: Partial<IClientOptions> = {}): IClientOptions {
+  const brokerUrl = normalizeBrokerUrl(env.MQTT_BROKER_URL);
   const isTls =
-    env.MQTT_BROKER_URL.startsWith('mqtts://') ||
-    env.MQTT_BROKER_URL.startsWith('tls://') ||
-    env.MQTT_BROKER_URL.startsWith('ssl://') ||
-    env.MQTT_BROKER_URL.includes(':8883');
+    brokerUrl.startsWith('mqtts://') ||
+    brokerUrl.startsWith('tls://') ||
+    brokerUrl.startsWith('ssl://') ||
+    brokerUrl.includes(':8883');
 
   const options: IClientOptions = {
     clientId: `${env.MQTT_CLIENT_ID}-${Math.random().toString(16).substring(2, 8)}`,
