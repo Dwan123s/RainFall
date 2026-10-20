@@ -380,10 +380,15 @@ export function renderStatusPageHtml(): string {
             document.getElementById('data-time').textContent = 'Cập nhật: ' + timeStr;
           }
 
-          if (rain) {
-            const todayMm = rain.todayMm !== undefined ? rain.todayMm.toFixed(1) + ' mm' : '0.0 mm';
-            const rateMmH = rain.currentRateMmH !== undefined ? rain.currentRateMmH.toFixed(1) + ' mm/h' : '0.0 mm/h';
-            document.getElementById('val-rain').textContent = todayMm + ' (' + rateMmH + ')';
+          if (rain || meas) {
+            let mmVal = (rain && rain.todayMm !== undefined) ? rain.todayMm : 0;
+            if (mmVal === 0 && meas && typeof meas.totalRainTips === 'number' && meas.totalRainTips > 0) {
+              mmVal = meas.totalRainTips * 0.64;
+            }
+            const todayMm = mmVal.toFixed(1) + ' mm';
+            const rateMmH = (rain && rain.currentRateMmH !== undefined) ? rain.currentRateMmH.toFixed(1) + ' mm/h' : '0.0 mm/h';
+            const tipsTxt = (meas && typeof meas.totalRainTips === 'number') ? ' • ' + meas.totalRainTips + ' lần lật' : '';
+            document.getElementById('val-rain').textContent = todayMm + ' (' + rateMmH + tipsTxt + ')';
           }
         }
       } catch (e) {

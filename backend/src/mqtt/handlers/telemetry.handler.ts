@@ -44,6 +44,7 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
 
     // Rain tips and rainfall (firmware default calibration: 0.64mm per tip)
     const totalRainTips: number = json.totalRainTips ?? json.tip_count ?? 0;
+    const rainMm: number = json.rain_mm ?? (totalRainTips * 0.64);
     const rainRate: number = json.rainRate ?? 0;
 
     // RSSI & Uptime
@@ -124,18 +125,30 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
 
     // Check if rain tips incremented to register a RainEvent
     const prevTips = lastKnownTips.get(deviceId);
+    let increment = 0;
     if (prevTips !== undefined && totalRainTips > prevTips) {
-      const increment = totalRainTips - prevTips;
-      const savedEvent = await dataStore.saveRainEvent({
-        deviceId,
-        eventId: `rain-${Date.now()}-${increment}`,
-        timestamp,
-        tipCount: increment,
-        calibrationFactor: 0.64
-      });
-      if (savedEvent) {
-        const stats = await rainfallService.getStatistics(deviceId);
-        emitRainUpdate(deviceId, savedEvent, stats);
+      increment = totalRainTips - prevTips;
+    } else if (prevTips === undefined && totalRainTips > 0) {
+      increment = totalRainTips;
+    }
+
+    if (increment > 0) {
+      const targets = [deviceId];
+      if (stationIdFromTopic && !targets.includes(stationIdFromTopic)) targets.push(stationIdFromTopic);
+      if (env.DEFAULT_STATION_ID && !targets.includes(env.DEFAULT_STATION_ID)) targets.push(env.DEFAULT_STATION_ID);
+
+      for (const tid of targets) {
+        const savedEvent = await dataStore.saveRainEvent({
+          deviceId: tid,
+          eventId: `rain-${tid}-${Date.now()}-${increment}`,
+          timestamp,
+          tipCount: increment,
+          calibrationFactor: 0.64
+        });
+        if (savedEvent) {
+          const stats = await rainfallService.getStatistics(tid);
+          emitRainUpdate(tid, savedEvent, stats);
+        }
       }
     }
     lastKnownTips.set(deviceId, totalRainTips);
