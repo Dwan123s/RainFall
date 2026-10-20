@@ -96,10 +96,22 @@ export function normalizeBrokerUrl(raw: string): string {
     return `${protocol}//${hostname}${finalPort}${pathname}`;
   }
 
-  // EMQX Cloud domains default to TLS port 8883
-  if (hostname.endsWith('.emqx.cloud') || hostname === 'emqx.cloud') {
+  // If port is 8443, on EMQX this is HTTPS/REST API; native MQTT TLS is 8883
+  if (port === '8443') {
+    port = '8883';
     protocol = 'mqtts:';
-    if (!port || port === '1883') {
+  }
+
+  // EMQX Cloud & Serverless domains (*.emqx.cloud, *.emqxsl.com) default to TLS port 8883
+  if (
+    hostname.endsWith('.emqx.cloud') ||
+    hostname === 'emqx.cloud' ||
+    hostname.endsWith('.emqxsl.com') ||
+    hostname === 'emqxsl.com' ||
+    hostname.endsWith('.emqxsl.cn')
+  ) {
+    protocol = 'mqtts:';
+    if (!port || port === '1883' || port === '8443') {
       port = '8883';
     }
   }
