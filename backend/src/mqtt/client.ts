@@ -15,45 +15,103 @@ let lastMqttError = '';
 let lastMqttHint = '';
 
 /**
- * Normalizes broker URL to ensure valid MQTT protocol schema
+ * Normalizes broker URL to ensure valid MQTT protocol schema, port, and path
  */
-export function normalizeBrokerUrl(url: string): string {
-  if (!url) return '';
-  let trimmed = url.trim();
+export function normalizeBrokerUrl(raw: string): string {
+  if (!raw) return '';
+  let str = raw.trim();
 
-  // Automatically fix if user accidentally pasted https:// or http:// from browser address bar
-  if (trimmed.startsWith('https://')) {
-    trimmed = trimmed.substring('https://'.length);
-    if (!trimmed.includes(':')) {
-      return `mqtts://${trimmed}:8883`;
-    }
-    return `mqtts://${trimmed}`;
-  }
-  if (trimmed.startsWith('http://')) {
-    trimmed = trimmed.substring('http://'.length);
-    if (!trimmed.includes(':')) {
-      return `mqtt://${trimmed}:1883`;
-    }
-    return `mqtt://${trimmed}`;
+  // Strip accidental quotes or spaces
+  str = str.replace(/^["']+|["']+$/g, '').trim();
+
+  // Check if user accidentally pasted EMQX Cloud web console/dashboard
+  if (str.includes('cloud.emqx.com/console') || str.includes('cloud.emqx.com/deployment')) {
+    lastMqttHint = 'Bạn đang điền link trang web EMQX Console! Địa chỉ Broker phải là mqtts://<tên-cụm>.emqx.cloud:8883';
+    return '';
   }
 
-  if (
-    trimmed.startsWith('mqtt://') ||
-    trimmed.startsWith('mqtts://') ||
-    trimmed.startsWith('tcp://') ||
-    trimmed.startsWith('tls://') ||
-    trimmed.startsWith('ssl://') ||
-    trimmed.startsWith('ws://') ||
-    trimmed.startsWith('wss://')
-  ) {
-    return trimmed;
+  // Check if user accidentally pasted Render backend service URL
+  if (str.includes('.onrender.com')) {
+    lastMqttHint = 'Bạn đang điền URL của Backend Render, không phải địa chỉ EMQX Broker!';
+    return '';
   }
-  // If port 8883 or 8884 is specified, default to mqtts://
-  if (trimmed.includes(':8883') || trimmed.includes(':8884')) {
-    return `mqtts://${trimmed}`;
+
+  // Check for EMQX Dashboard port (18083)
+  if (str.includes(':18083')) {
+    lastMqttHint = 'Cổng 18083 là EMQX Web Dashboard, không phải cổng MQTT! Dùng cổng 8883 (mqtts://) hoặc 1883 (mqtt://).';
+    return '';
   }
-  // Otherwise default to mqtt://
-  return `mqtt://${trimmed}`;
+
+  let protocol = 'mqtt:';
+  let addressWithoutProto = str;
+
+  if (str.startsWith('mqtts://') || str.startsWith('tls://') || str.startsWith('ssl://')) {
+    protocol = 'mqtts:';
+    addressWithoutProto = str.replace(/^(mqtts|tls|ssl):\/\//, '');
+  } else if (str.startsWith('mqtt://') || str.startsWith('tcp://')) {
+    protocol = 'mqtt:';
+    addressWithoutProto = str.replace(/^(mqtt|tcp):\/\//, '');
+  } else if (str.startsWith('wss://')) {
+    protocol = 'wss:';
+    addressWithoutProto = str.replace(/^wss:\/\//, '');
+  } else if (str.startsWith('ws://')) {
+    protocol = 'ws:';
+    addressWithoutProto = str.replace(/^ws:\/\//, '');
+  } else if (str.startsWith('https://')) {
+    addressWithoutProto = str.replace(/^https:\/\//, '');
+    protocol = 'mqtts:'; // Default https to secure mqtts
+  } else if (str.startsWith('http://')) {
+    addressWithoutProto = str.replace(/^http:\/\//, '');
+    protocol = 'mqtt:';
+  }
+
+  // Parse hostname, port, and pathname
+  let fakeUrl: URL;
+  try {
+    fakeUrl = new URL('http://' + addressWithoutProto);
+  } catch {
+    return str;
+  }
+
+  const hostname = fakeUrl.hostname;
+  let port = fakeUrl.port;
+  let pathname = fakeUrl.pathname || '';
+
+  // Smart WebSocket port detection (8084 = wss, 8083 = ws)
+  if (port === '8084') {
+    protocol = 'wss:';
+    if (!pathname || pathname === '/') pathname = '/mqtt';
+    return `${protocol}//${hostname}:8084${pathname}`;
+  }
+  if (port === '8083') {
+    protocol = 'ws:';
+    if (!pathname || pathname === '/') pathname = '/mqtt';
+    return `${protocol}//${hostname}:8083${pathname}`;
+  }
+
+  // Explicit WebSocket protocols
+  if (protocol === 'ws:' || protocol === 'wss:') {
+    if (!pathname || pathname === '/') pathname = '/mqtt';
+    const finalPort = port ? `:${port}` : (protocol === 'wss:' ? ':8084' : ':8083');
+    return `${protocol}//${hostname}${finalPort}${pathname}`;
+  }
+
+  // EMQX Cloud domains default to TLS port 8883
+  if (hostname.endsWith('.emqx.cloud') || hostname === 'emqx.cloud') {
+    protocol = 'mqtts:';
+    if (!port || port === '1883') {
+      port = '8883';
+    }
+  }
+
+  if (port === '8883' || port === '8884') {
+    protocol = 'mqtts:';
+  } else if (port === '1883') {
+    protocol = 'mqtt:';
+  }
+
+  const portStr = port ? `:${port}` : (protocol === 'mqtts:' ? ':8883' : ':1883');
+  return `${protocol}//${hostname}${portStr}`;
 }
 
 /**
@@ -63,9 +121,11 @@ export function buildMqttOptions(overrides: Partial<IClientOptions> = {}): IClie
   const brokerUrl = normalizeBrokerUrl(env.MQTT_BROKER_URL);
   const isTls =
     brokerUrl.startsWith('mqtts://') ||
+    brokerUrl.startsWith('wss://') ||
     brokerUrl.startsWith('tls://') ||
     brokerUrl.startsWith('ssl://') ||
-    brokerUrl.includes(':8883');
+    brokerUrl.includes(':8883') ||
+    brokerUrl.includes(':8084');
 
   const options: IClientOptions = {
     clientId: `${env.MQTT_CLIENT_ID}-${Math.random().toString(16).substring(2, 8)}`,
@@ -89,7 +149,13 @@ export function buildMqttOptions(overrides: Partial<IClientOptions> = {}): IClie
 
     // Set SNI servername for TLS (Crucial for EMQX Cloud load balancers)
     try {
-      const parsed = new URL(brokerUrl.replace(/^(mqtts|tls|ssl):\/\//, 'https://'));
+      const parsed = new URL(
+        brokerUrl
+          .replace(/^(mqtts|tls|ssl):\/\//, 'https://')
+          .replace(/^wss:\/\//, 'https://')
+          .replace(/^ws:\/\//, 'http://')
+          .replace(/^mqtt:\/\//, 'http://')
+      );
       options.host = parsed.hostname;
       if (parsed.port) {
         options.port = parseInt(parsed.port, 10);
@@ -197,6 +263,11 @@ export function initMqttClient(): MqttClient | null {
       // Provide diagnostic troubleshooting tips based on EMQX error code
       let hint = 'Lỗi kết nối Broker. Đang tự động kết nối lại...';
       if (
+        err.message.includes('Invalid header flag bits') ||
+        err.message.includes('puback packet')
+      ) {
+        hint = `Sai Port hoặc sai giao thức (${brokerUrl})! Server đang phản hồi HTTP thay vì MQTT. Nếu dùng EMQX Cloud, hãy điền: mqtts://<cluster>.emqx.cloud:8883 hoặc mqtt://broker.emqx.io:1883`;
+      } else if (
         err.message.includes('DEPTH_ZERO_SELF_SIGNED_CERT') ||
         err.message.includes('SELF_SIGNED_CERT_IN_CHAIN') ||
         err.message.includes('unable to verify')
@@ -212,11 +283,13 @@ export function initMqttClient(): MqttClient | null {
         err.code === 4 ||
         err.code === 5
       ) {
-        hint = 'Sai tài khoản MQTT! Kiểm tra MQTT_USERNAME và MQTT_PASSWORD trên Render và EMQX';
+        hint = 'Sai tài khoản MQTT! Kiểm tra MQTT_USERNAME và MQTT_PASSWORD trên Render và EMQX Authentication';
       } else if (err.message.includes('ENOTFOUND')) {
         hint = `Không tìm thấy địa chỉ Host của Broker (${brokerUrl}). Kiểm tra lại MQTT_BROKER_URL`;
       } else if (err.message.includes('ETIMEDOUT')) {
         hint = `Kết nối tới Broker (${brokerUrl}) bị Timeout. Kiểm tra cổng mạng và tường lửa`;
+      } else if (err.message.includes('connack timeout')) {
+        hint = `Chờ Broker xác thực bị quá hạn (${brokerUrl}). Kiểm tra lại Port (1883/8883) và tường lửa`;
       }
 
       lastMqttError = err.message;

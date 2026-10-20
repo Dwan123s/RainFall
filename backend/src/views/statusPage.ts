@@ -265,6 +265,7 @@ export function renderStatusPageHtml(): string {
           <span id="mqtt-text">DISCONNECTED</span>
         </div>
         <div id="mqtt-sub" class="status-sub">Đang kết nối Broker...</div>
+        <div id="mqtt-endpoint" style="font-size: 11px; color: #94a3b8; margin-top: 6px; font-family: monospace; word-break: break-all;"></div>
       </div>
     </div>
 
@@ -333,11 +334,13 @@ export function renderStatusPageHtml(): string {
           const mqttEl = document.getElementById('mqtt-status');
           const mqttTxt = document.getElementById('mqtt-text');
           const mqttSub = document.getElementById('mqtt-sub');
+          const mqttEp = document.getElementById('mqtt-endpoint');
           if (d.mqtt && (d.mqtt.connected || d.mqtt.status === 'CONNECTED')) {
             mqttEl.className = 'status-value status-connected';
             mqttTxt.textContent = 'CONNECTED';
-            mqttSub.textContent = d.mqtt.broker || 'Đã kết nối';
+            mqttSub.textContent = 'Kết nối thành công (QoS 1)';
             mqttSub.style.color = '#10b981';
+            if (mqttEp) mqttEp.textContent = d.mqtt.broker || '';
           } else {
             mqttEl.className = 'status-value status-disconnected';
             mqttTxt.textContent = 'DISCONNECTED';
@@ -351,6 +354,7 @@ export function renderStatusPageHtml(): string {
             }
             mqttSub.textContent = errMsg;
             mqttSub.style.color = '#f87171';
+            if (mqttEp) mqttEp.textContent = d.mqtt.broker ? 'Endpoint: ' + d.mqtt.broker : '';
           }
         }
       } catch (e) {
