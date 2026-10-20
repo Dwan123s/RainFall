@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: rainsense-backend
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install && npm run build:server
+    startCommand: npm run start:server
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: MQTT_BROKER_URL
+        sync: false
+      - key: MQTT_USERNAME
+        sync: false
+      - key: MQTT_PASSWORD
+        sync: false
+      - key: MQTT_REJECT_UNAUTHORIZED
+        value: "true"
+      - key: DEMO_MODE
+        value: "false"
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@rainsense.io
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DEFAULT_STATION_ID
+        value: RS-ESP32S3-01
+      - key: DEFAULT_TIMEZONE
+        value: Asia/Ho_Chi_Minh
