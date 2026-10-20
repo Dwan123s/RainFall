@@ -341,7 +341,14 @@ export function renderStatusPageHtml(): string {
           } else {
             mqttEl.className = 'status-value status-disconnected';
             mqttTxt.textContent = 'DISCONNECTED';
-            const errMsg = d.mqtt.lastError ? (d.mqtt.hint || d.mqtt.lastError) : (d.mqtt.broker || 'Chưa thể kết nối tới Broker');
+            let errMsg = 'Chưa thể kết nối tới Broker';
+            if (d.mqtt.hint) {
+              errMsg = d.mqtt.hint;
+            } else if (d.mqtt.lastError) {
+              errMsg = d.mqtt.lastError;
+            } else if (d.mqtt.broker) {
+              errMsg = 'Đang thử kết nối ' + d.mqtt.broker;
+            }
             mqttSub.textContent = errMsg;
             mqttSub.style.color = '#f87171';
           }

@@ -87,6 +87,18 @@ export function buildMqttOptions(overrides: Partial<IClientOptions> = {}): IClie
   if (isTls) {
     options.rejectUnauthorized = env.MQTT_REJECT_UNAUTHORIZED;
 
+    // Set SNI servername for TLS (Crucial for EMQX Cloud load balancers)
+    try {
+      const parsed = new URL(brokerUrl.replace(/^(mqtts|tls|ssl):\/\//, 'https://'));
+      options.host = parsed.hostname;
+      if (parsed.port) {
+        options.port = parseInt(parsed.port, 10);
+      }
+      options.servername = parsed.hostname;
+    } catch {
+      // fallback
+    }
+
     // Load custom CA certificate if specified
     if (env.MQTT_CA_CERT && env.MQTT_CA_CERT.trim().length > 0) {
       try {
@@ -183,13 +195,28 @@ export function initMqttClient(): MqttClient | null {
       isConnecting = false;
 
       // Provide diagnostic troubleshooting tips based on EMQX error code
-      let hint = 'Broker error encountered. Will auto-retry reconnecting.';
-      if (err.message.includes('DEPTH_ZERO_SELF_SIGNED_CERT') || err.message.includes('SELF_SIGNED_CERT_IN_CHAIN')) {
-        hint = 'TLS Certificate verification failed. Set MQTT_REJECT_UNAUTHORIZED=false or supply MQTT_CA_CERT in .env';
+      let hint = 'Lỗi kết nối Broker. Đang tự động kết nối lại...';
+      if (
+        err.message.includes('DEPTH_ZERO_SELF_SIGNED_CERT') ||
+        err.message.includes('SELF_SIGNED_CERT_IN_CHAIN') ||
+        err.message.includes('unable to verify')
+      ) {
+        hint = 'Lỗi chứng chỉ TLS: Hãy thêm biến MQTT_REJECT_UNAUTHORIZED=false trên Render';
       } else if (err.message.includes('ECONNREFUSED')) {
-        hint = `Cannot reach EMQX broker at ${brokerUrl}. Verify that EMQX is running and port is open.`;
-      } else if (err.message.includes('Not authorized') || err.code === 134 || err.code === 135 || err.code === 4 || err.code === 5) {
-        hint = 'EMQX Authentication failed. Check MQTT_USERNAME and MQTT_PASSWORD in .env';
+        hint = `Không thể kết nối tới Broker (${brokerUrl}). Hãy kiểm tra lại Host và Port.`;
+      } else if (
+        err.message.includes('Not authorized') ||
+        err.message.includes('Bad username') ||
+        err.code === 134 ||
+        err.code === 135 ||
+        err.code === 4 ||
+        err.code === 5
+      ) {
+        hint = 'Sai tài khoản MQTT! Kiểm tra MQTT_USERNAME và MQTT_PASSWORD trên Render và EMQX';
+      } else if (err.message.includes('ENOTFOUND')) {
+        hint = `Không tìm thấy địa chỉ Host của Broker (${brokerUrl}). Kiểm tra lại MQTT_BROKER_URL`;
+      } else if (err.message.includes('ETIMEDOUT')) {
+        hint = `Kết nối tới Broker (${brokerUrl}) bị Timeout. Kiểm tra cổng mạng và tường lửa`;
       }
 
       lastMqttError = err.message;
