@@ -75,7 +75,38 @@ export async function testPrismaConnection(): Promise<boolean> {
     `;
     verifiedTableCount = tables.length;
 
-    isPrismaConnected = true;
+    // If database is empty, auto-push schema to create tables automatically
+    if (verifiedTableCount === 0) {
+      logger.info(
+        'Empty database detected. Auto-creating RainSense tables on Aiven PostgreSQL via Prisma db push...'
+      );
+      try {
+        const { execSync } = await import('child_process');
+        execSync('npx prisma db push --schema=prisma/schema.prisma --accept-data-loss', {
+          stdio: 'inherit',
+          env: { ...process.env, DATABASE_URL: env.DATABASE_URL }
+        });
+
+        // Re-inspect tables after push
+        const refreshedTables: Array<{ tablename: string }> = await client.$queryRaw`
+          SELECT tablename FROM pg_tables WHERE schemaname = 'public';
+        `;
+        verifiedTableCount = refreshedTables.length;
+        logger.info(
+          { tablesCreated: verifiedTableCount },
+          'Successfully auto-created all RainSense tables on Aiven PostgreSQL!'
+        );
+      } catch (pushErr: unknown) {
+        const err = pushErr as Error;
+        logger.warn(
+          { err: err.message },
+          'Auto db push encountered an issue, will fallback to memory store if tables are missing.'
+        );
+      }
+    }
+
+    // Only set connected if tables actually exist
+    isPrismaConnected = verifiedTableCount > 0;
 
     if (isAiven) {
       logger.info(
@@ -89,14 +120,14 @@ export async function testPrismaConnection(): Promise<boolean> {
       );
     }
 
-    // Alert if database is empty (no tables pushed yet)
+    // Alert if database is still empty
     if (verifiedTableCount === 0) {
       logger.warn(
-        'Database connected, but no tables found in schema "public". Run "npm run db:push" to create RainSense tables.'
+        'Database connected, but no tables found in schema "public". Operating in Standalone Memory mode.'
       );
     }
 
-    return true;
+    return isPrismaConnected;
   } catch (err: unknown) {
     const error = err as Error;
     isPrismaConnected = false;
