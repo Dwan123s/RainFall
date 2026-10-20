@@ -13,7 +13,11 @@
     "dev:web": "npm run --workspace=@rainsense/web dev",
     "build": "npm run build --workspace=@rainsense/shared && npm run build --workspace=@rainsense/server && npm run build --workspace=@rainsense/web",
     "test": "npm run test --workspace=@rainsense/server",
-    "lint": "tsc --noEmit"
+    "test:conn": "npm run --workspace=@rainsense/server test:conn",
+    "db:push": "npm run --workspace=@rainsense/server db:push",
+    "db:seed": "npm run --workspace=@rainsense/server db:seed",
+    "db:studio": "npm run --workspace=@rainsense/server db:studio",
+    "lint": "tsc --noEmit --project packages/shared/tsconfig.json && tsc --noEmit --project apps/server/tsconfig.json && tsc --noEmit --project apps/web/tsconfig.json"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

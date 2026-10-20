@@ -6,9 +6,15 @@ import { alertController } from '../controllers/alert.controller';
 import { exportController } from '../controllers/export.controller';
 import { demoController } from '../controllers/demo.controller';
 import { aiController } from '../controllers/ai.controller';
+import { systemController } from '../controllers/system.controller';
 import { authenticate } from '../middleware/auth.middleware';
 
 export const apiRouter = Router();
+
+// Infrastructure Diagnostics (EMQX & Aiven)
+apiRouter.get('/system/status', systemController.getStatus);
+apiRouter.post('/system/test-db', systemController.testDatabase);
+apiRouter.post('/system/test-mqtt', systemController.testMqtt);
 
 // Authentication
 apiRouter.post('/auth/login', authController.login);

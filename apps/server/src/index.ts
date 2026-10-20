@@ -3,10 +3,10 @@ import http from 'http';
 import cors from 'cors';
 import { env } from './config/env';
 import { logger } from './utils/logger';
-import { testPrismaConnection } from './db/prisma';
+import { testPrismaConnection, getDbInfo } from './db/prisma';
 import { seedInitialData } from './db/seed';
 import { initSocketIO } from './socket/io';
-import { initMqttClient } from './mqtt/client';
+import { initMqttClient, getMqttInfo } from './mqtt/client';
 import { stationSimulator } from './mqtt/simulator';
 import { apiRouter } from './routes/api';
 import { alertService } from './services/alert.service';
@@ -40,13 +40,28 @@ if (env.NODE_ENV !== 'production') {
   });
 }
 
-// Health check endpoint
+// Health check endpoint with EMQX & Aiven connectivity summary
 app.get('/health', (req: Request, res: Response) => {
+  const dbInfo = getDbInfo();
+  const mqttInfo = getMqttInfo();
+
   res.json({
     status: 'OK',
-    service: 'RainSense Server',
+    service: 'RainSense IoT Backend',
     mode: env.DEMO_MODE ? 'DEMO' : 'LIVE',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    database: {
+      connected: dbInfo.connected,
+      provider: dbInfo.provider,
+      isAiven: dbInfo.isAiven,
+      endpoint: dbInfo.endpoint,
+      tablesCount: dbInfo.tablesCount
+    },
+    mqtt: {
+      connected: mqttInfo.connected,
+      status: mqttInfo.status,
+      broker: mqttInfo.broker
+    }
   });
 });
 
@@ -65,17 +80,17 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 // Start Server
 async function startServer() {
   try {
-    logger.info('Bootstrapping RainSense IoT Server...');
+    logger.info('Bootstrapping RainSense IoT Server (EMQX & Aiven Stack)...');
 
     // Initialize Socket.IO
     initSocketIO(server, env.CORS_ORIGIN);
     logger.info('Socket.IO real-time engine initialized.');
 
-    // Database Connection and Seed
+    // Database Connection (Aiven PostgreSQL or fallback) and Seed
     await testPrismaConnection();
     await seedInitialData();
 
-    // MQTT Client
+    // MQTT Client (EMQX Broker)
     initMqttClient();
 
     // Start Simulator if in DEMO MODE
@@ -94,7 +109,13 @@ async function startServer() {
 
     server.listen(env.PORT, env.HOST, () => {
       logger.info(`RainSense Backend Server listening on http://${env.HOST}:${env.PORT}`);
-      logger.info(`Operating Mode: [${env.DEMO_MODE ? 'DEMO MODE (Simulated Hardware)' : 'LIVE MODE (HiveMQ Cloud Ingestion)'}]`);
+      logger.info(
+        `Operating Mode: [${
+          env.DEMO_MODE
+            ? 'DEMO MODE (Simulated Hardware)'
+            : 'LIVE MODE (EMQX MQTT Ingestion & Aiven PostgreSQL)'
+        }]`
+      );
     });
   } catch (error) {
     logger.fatal({ err: error }, 'Failed to bootstrap RainSense Server');

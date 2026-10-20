@@ -98,7 +98,7 @@ export class AiService {
     context: any,
     apiKey: string
   ): Promise<string | null> {
-    const systemPrompt = `Bạn là Chiikawa (ちいかわ) — Trợ lý AI Khí tượng & IoT thông minh, đáng yêu của trạm quan trắc RainSense (kết nối ESP32-S3, BME280 và cảm biến lật gầu Hall A3144 qua MQTT HiveMQ Cloud).
+    const systemPrompt = `Bạn là Chiikawa (ちいかわ) — Trợ lý AI Khí tượng & IoT thông minh, đáng yêu của trạm quan trắc RainSense (kết nối ESP32-S3, BME280 và cảm biến lật gầu Hall A3144 qua EMQX MQTT Broker và Aiven PostgreSQL).
 Tính cách: Rất dễ thương, nhiệt tình, vui vẻ, hay dùng các biểu cảm icon đáng yêu như ( ˶ᵔ ᵕ ᵔ˶ ), ( ˶•̀֊•́˶ ), ( •̀ ω •́ )✧, (｡•́‿•̀｡), Waaah!, "nè!", "nha!".
 Kiến thức: Trả lời cực kỳ chuẩn xác, sâu sắc về khí tượng học (nhiệt độ, độ ẩm, khí áp, điểm sương Magnus-Tetens, chỉ số nhiệt Rothfusz, tính lượng mưa bằng gầu lật mm = tips * 0.25 mm/tip, cường độ mưa mm/h theo cửa sổ trượt 5 phút) và kỹ thuật nhúng ESP32-S3 (I2C SDA GPIO21, SCL GPIO22, ngắt GPIO4, MQTT TLS 8883, QoS 1).
 
@@ -339,13 +339,13 @@ Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, định dạng
     // 7. MQTT & HiveMQ Cloud
     if (
       q.includes('mqtt') ||
-      q.includes('hivemq') ||
+      q.includes('hivemq') || q.includes('emqx') || q.includes('aiven') ||
       q.includes('broker') ||
       q.includes('topic') ||
       q.includes('lwt')
     ) {
       return (
-        `Hệ thống RainSense sử dụng **HiveMQ Cloud MQTT Broker qua TLS (Port 8883)** cực kỳ bảo mật nè ( •̀ ω •́ )✧!\n\n` +
+        `Hệ thống RainSense sử dụng **EMQX MQTT Broker** (TLS Port 8883 hoặc TCP Port 1883) kết nối **Aiven PostgreSQL** cực kỳ bảo mật nè ( •̀ ω •́ )✧!\n\n` +
         `### Danh sách MQTT Topics chuẩn của trạm:\n` +
         `- \`weather/RS-ESP32S3-01/telemetry\`: Bản tin cảm biến định kỳ mỗi 30s (Nhiệt độ, Độ ẩm, Khí áp, Tổng nhịp mưa, RSSI, Uptime).\n` +
         `- \`weather/RS-ESP32S3-01/rain\`: Bản tin phát ngay lập tức khi gầu lật có xung mưa mới.\n` +
@@ -368,7 +368,7 @@ Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, định dạng
         `Waaah! Nếu trạm **${context.deviceId}** đang bị báo **Ngoại tuyến**, Chiikawa hướng dẫn bạn các bước kiểm tra cực nhanh nhé (｡•́‿•̀｡):\n\n` +
         `1. 🔌 **Kiểm tra nguồn điện:** Đèn LED trên ESP32-S3 có sáng không? Hãy thử cắm lại cáp USB Type-C sang cổng cấp nguồn ổn định (khuyên dùng nguồn 5V/2A).\n` +
         `2. 📶 **Kiểm tra Wi-Fi:** Đảm bảo SSID và mật khẩu trong code \`RainSense_ESP32S3.ino\` chính xác và sóng Wi-Fi tại vị trí đặt trạm đủ mạnh (RSSI > -75 dBm).\n` +
-        `3. ☁️ **Kiểm tra HiveMQ Cloud:** Kiểm tra thông tin Cluster URL và tài khoản MQTT trong file \`.env\` và firmware có khớp nhau không.\n` +
+        `3. ☁️ **Kiểm tra EMQX Broker:** Kiểm tra thông tin Broker URL và tài khoản MQTT trong file \`.env\` và firmware có khớp nhau không.\n` +
         `4. 💻 **Mở Serial Monitor:** Bật Serial Monitor ở baudrate **115200** trong Arduino IDE để xem ESP32-S3 in ra thông báo lỗi ở bước nào nha!\n\n` +
         `Đừng lo lắng nha, Chiikawa tin là kiểm tra các bước trên là trạm sẽ kết nối lại ngay thôi nè! ( ˶ᵔ ᵕ ᵔ˶ )`
       );

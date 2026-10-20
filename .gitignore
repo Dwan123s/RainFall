@@ -11,6 +11,7 @@ dist/
 build/
 out/
 .turbo/
+*.tsbuildinfo
 
 # Environment files
 .env
