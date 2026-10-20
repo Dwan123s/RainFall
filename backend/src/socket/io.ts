@@ -17,7 +17,7 @@ export function initSocketIO(server: HttpServer, corsOrigin: string): SocketIOSe
 
   ioInstance = new SocketIOServer(server, {
     cors: {
-      origin: allowedOrigins,
+      origin: allowedOrigins.includes('*') ? true : allowedOrigins,
       methods: ['GET', 'POST'],
       credentials: true
     },
