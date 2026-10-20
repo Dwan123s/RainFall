@@ -234,11 +234,13 @@ export function initMqttClient(): MqttClient | null {
 
       const prefix = env.MQTT_TOPIC_PREFIX;
       subscribedTopics = [
+        `${prefix}/+/data`,
         `${prefix}/+/telemetry`,
         `${prefix}/+/rain`,
         `${prefix}/+/status`,
         `${prefix}/+/command/ack`,
-        `${prefix}/+/config`
+        `${prefix}/+/config`,
+        `${prefix}/#`
       ];
 
       client?.subscribe(subscribedTopics, (err) => {
@@ -314,18 +316,18 @@ export function initMqttClient(): MqttClient | null {
       try {
         const parts = topic.split('/');
         // Expecting {prefix}/{deviceId}/{subtopic}
-        if (parts.length < 3) return;
+        if (parts.length >= 3) {
+          const subtopic = parts.slice(2).join('/');
 
-        const subtopic = parts.slice(2).join('/');
-
-        if (subtopic === 'telemetry') {
-          handleTelemetryMessage(topic, payload);
-        } else if (subtopic === 'rain') {
-          handleRainEventMessage(topic, payload);
-        } else if (subtopic === 'status') {
-          handleStatusMessage(topic, payload);
-        } else if (subtopic === 'command/ack') {
-          handleCommandAckMessage(topic, payload);
+          if (subtopic === 'telemetry' || subtopic === 'data') {
+            handleTelemetryMessage(topic, payload);
+          } else if (subtopic === 'rain') {
+            handleRainEventMessage(topic, payload);
+          } else if (subtopic === 'status') {
+            handleStatusMessage(topic, payload);
+          } else if (subtopic === 'command/ack') {
+            handleCommandAckMessage(topic, payload);
+          }
         }
       } catch (err: unknown) {
         const error = err as Error;

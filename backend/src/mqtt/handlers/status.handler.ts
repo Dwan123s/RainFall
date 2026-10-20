@@ -1,31 +1,58 @@
-import { DeviceStatusPayloadSchema } from '../../shared';
 import { dataStore } from '../../db/store';
 import { emitDeviceStatus } from '../../socket/io';
 import { logger } from '../../utils/logger';
+import { env } from '../../config/env';
 
 export async function handleStatusMessage(topic: string, rawPayload: Buffer | string) {
   try {
-    const json = JSON.parse(rawPayload.toString());
-    const parseResult = DeviceStatusPayloadSchema.safeParse(json);
+    const rawStr = rawPayload.toString().trim();
+    const parts = topic.split('/');
+    const stationIdFromTopic = parts[1] || env.DEFAULT_STATION_ID;
 
-    if (!parseResult.success) {
-      logger.warn({ errors: parseResult.error.format() }, 'Invalid device status payload');
-      return;
+    let deviceId = stationIdFromTopic;
+    let isOnline = true;
+    let wifiRssi: number | undefined;
+    let uptime: number | undefined;
+    let timestamp = new Date().toISOString();
+
+    if (rawStr === 'online' || rawStr === 'offline') {
+      isOnline = rawStr === 'online';
+    } else {
+      try {
+        const json = JSON.parse(rawStr);
+        if (typeof json === 'object' && json !== null) {
+          deviceId = json.deviceId || json.device_id || stationIdFromTopic;
+          isOnline = json.status === 'online';
+          wifiRssi = json.wifiRssi ?? json.wifi_rssi_dbm;
+          uptime = json.uptime ?? json.uptime_ms;
+          timestamp = json.timestamp || timestamp;
+        }
+      } catch {
+        isOnline = rawStr.toLowerCase().includes('online');
+      }
     }
 
-    const data = parseResult.data;
-    const isOnline = data.status === 'online';
+    // Auto-create/ensure device in database
+    await dataStore.upsertDevice({
+      deviceId,
+      name: `Trạm ${stationIdFromTopic}`,
+      location: 'Trạm khí tượng tự động'
+    });
 
-    await dataStore.updateDeviceStatus(
-      data.deviceId,
-      isOnline,
-      data.timestamp,
-      data.wifiRssi,
-      data.uptime
-    );
+    await dataStore.updateDeviceStatus(deviceId, isOnline, timestamp, wifiRssi, uptime);
+    emitDeviceStatus(deviceId, isOnline, timestamp, wifiRssi);
 
-    emitDeviceStatus(data.deviceId, isOnline, data.timestamp, data.wifiRssi);
-    logger.info({ deviceId: data.deviceId, isOnline, reason: data.reason }, 'Station status updated');
+    if (env.DEFAULT_STATION_ID && deviceId !== env.DEFAULT_STATION_ID) {
+      await dataStore.upsertDevice({
+        deviceId: env.DEFAULT_STATION_ID,
+        name: `Trạm ${env.DEFAULT_STATION_ID}`,
+        location: 'Trạm khí tượng tự động'
+      });
+      await dataStore.updateDeviceStatus(env.DEFAULT_STATION_ID, isOnline, timestamp, wifiRssi, uptime);
+      emitDeviceStatus(env.DEFAULT_STATION_ID, isOnline, timestamp, wifiRssi);
+    }
+
+    logger.info({ deviceId, isOnline, topic }, 'Station status updated from MQTT');
   } catch (err: unknown) {
     const error = err as Error;
     logger.error({ err: error.message }, 'Error processing status MQTT message');
