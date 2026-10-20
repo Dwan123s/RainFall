@@ -44,9 +44,10 @@ Nếu muốn cấu hình thủ công từng bước:
 | **Name** | `rainsense-backend` | Tên service hiển thị trên Render |
 | **Region** | `Singapore (Southeast Asia)` | Gần Việt Nam nhất, độ trễ thấp (< 40ms) |
 | **Branch** | `main` | Nhánh Git sản xuất |
+| **Root Directory** | `backend` | Thư mục chứa toàn bộ mã nguồn Backend |
 | **Runtime** | `Node` | Môi trường Node.js LTS |
-| **Build Command** | `npm install && npm run build:server` | Cài đặt package, generate Prisma & compile TypeScript |
-| **Start Command** | `npm run start:server` | Chạy server Node.js sản xuất |
+| **Build Command** | `npm install && npm run build` | Cài đặt package, generate Prisma & compile TypeScript |
+| **Start Command** | `npm run start` | Chạy server Node.js sản xuất |
 | **Instance Type** | `Free` | Miễn phí hoặc nâng cấp `Starter` ($7/tháng) |
 
 ### Bước 3: Cấu hình Health Check Path
