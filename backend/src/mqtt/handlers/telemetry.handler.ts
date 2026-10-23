@@ -5,8 +5,9 @@ import { emitTelemetryUpdate, emitNewAlert, emitDeviceStatus, emitRainUpdate } f
 import { logger } from '../../utils/logger';
 import { env } from '../../config/env';
 
-// Track last known tip count per device to detect bucket tip increments
+// Track last known tip count and reset sequence per device to detect bucket tip increments & hardware resets
 const lastKnownTips = new Map<string, number>();
+const lastKnownResetSeq = new Map<string, number>();
 
 export async function handleTelemetryMessage(topic: string, rawPayload: Buffer | string) {
   try {
@@ -44,8 +45,8 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
 
     // Rain tips and rainfall (firmware default calibration: 0.64mm per tip)
     const totalRainTips: number = json.totalRainTips ?? json.tip_count ?? 0;
-    const rainMm: number = json.rain_mm ?? (totalRainTips * 0.64);
     const rainRate: number = json.rainRate ?? 0;
+    const resetSeq: number = json.rain_reset_sequence ?? json.sequenceNumber ?? 0;
 
     // RSSI & Uptime
     const wifiRssi: number = json.wifiRssi ?? json.wifi_rssi_dbm ?? -60;
@@ -123,35 +124,54 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
       });
     }
 
-    // Check if rain tips incremented to register a RainEvent
+    // Target devices to synchronize
+    const targets = [deviceId];
+    if (stationIdFromTopic && !targets.includes(stationIdFromTopic)) targets.push(stationIdFromTopic);
+    if (env.DEFAULT_STATION_ID && !targets.includes(env.DEFAULT_STATION_ID)) targets.push(env.DEFAULT_STATION_ID);
+
+    // Check for HARDWARE RESET (User pressed BOOT button on ESP32 or rain_reset_sequence incremented)
+    const prevResetSeq = lastKnownResetSeq.get(deviceId);
     const prevTips = lastKnownTips.get(deviceId);
-    let increment = 0;
-    if (prevTips !== undefined && totalRainTips > prevTips) {
-      increment = totalRainTips - prevTips;
-    } else if (prevTips === undefined && totalRainTips > 0) {
-      increment = totalRainTips;
-    }
+    const isHardwareReset =
+      (prevResetSeq !== undefined && resetSeq > prevResetSeq) ||
+      (prevTips !== undefined && prevTips > 0 && totalRainTips === 0);
 
-    if (increment > 0) {
-      const targets = [deviceId];
-      if (stationIdFromTopic && !targets.includes(stationIdFromTopic)) targets.push(stationIdFromTopic);
-      if (env.DEFAULT_STATION_ID && !targets.includes(env.DEFAULT_STATION_ID)) targets.push(env.DEFAULT_STATION_ID);
-
+    if (isHardwareReset) {
+      logger.info({ deviceId, resetSeq, prevResetSeq }, 'Hardware rain reset signal received! Purging previous rain events...');
       for (const tid of targets) {
-        const savedEvent = await dataStore.saveRainEvent({
-          deviceId: tid,
-          eventId: `rain-${tid}-${Date.now()}-${increment}`,
-          timestamp,
-          tipCount: increment,
-          calibrationFactor: 0.64
-        });
-        if (savedEvent) {
-          const stats = await rainfallService.getStatistics(tid);
-          emitRainUpdate(tid, savedEvent, stats);
+        await dataStore.clearRainEvents(tid);
+        const resetStats = await rainfallService.getStatistics(tid);
+        emitRainUpdate(tid, null, resetStats);
+      }
+      lastKnownTips.set(deviceId, 0);
+      lastKnownResetSeq.set(deviceId, resetSeq);
+    } else {
+      // Check if rain tips incremented to register a RainEvent
+      let increment = 0;
+      if (prevTips !== undefined && totalRainTips > prevTips) {
+        increment = totalRainTips - prevTips;
+      }
+
+      if (increment > 0) {
+        for (const tid of targets) {
+          const savedEvent = await dataStore.saveRainEvent({
+            deviceId: tid,
+            eventId: `rain-${tid}-${Date.now()}-${increment}`,
+            timestamp,
+            tipCount: increment,
+            calibrationFactor: 0.64
+          });
+          if (savedEvent) {
+            const stats = await rainfallService.getStatistics(tid);
+            emitRainUpdate(tid, savedEvent, stats);
+          }
         }
       }
+      lastKnownTips.set(deviceId, totalRainTips);
+      if (prevResetSeq === undefined) {
+        lastKnownResetSeq.set(deviceId, resetSeq);
+      }
     }
-    lastKnownTips.set(deviceId, totalRainTips);
 
     if (saved) {
       // Broadcast to connected frontend clients in real time
@@ -166,7 +186,7 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
         uptime,
         totalRainTips,
         rainRate,
-        sequenceNumber: json.sequenceNumber || json.rain_reset_sequence || 0,
+        sequenceNumber: resetSeq,
         bootId: json.bootId || 'boot-esp32',
         firmwareVersion: '1.0.0'
       });

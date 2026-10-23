@@ -380,15 +380,12 @@ export function renderStatusPageHtml(): string {
             document.getElementById('data-time').textContent = 'Cập nhật: ' + timeStr;
           }
 
-          if (rain || meas) {
-            let mmVal = (rain && rain.todayMm !== undefined) ? rain.todayMm : 0;
-            if (mmVal === 0 && meas && typeof meas.totalRainTips === 'number' && meas.totalRainTips > 0) {
-              mmVal = meas.totalRainTips * 0.64;
-            }
-            const todayMm = mmVal.toFixed(1) + ' mm';
-            const rateMmH = (rain && rain.currentRateMmH !== undefined) ? rain.currentRateMmH.toFixed(1) + ' mm/h' : '0.0 mm/h';
-            const tipsTxt = (meas && typeof meas.totalRainTips === 'number') ? ' • ' + meas.totalRainTips + ' lần lật' : '';
-            document.getElementById('val-rain').textContent = todayMm + ' (' + rateMmH + tipsTxt + ')';
+          if (meas || rain) {
+            const tips = (meas && typeof meas.totalRainTips === 'number') ? meas.totalRainTips : 0;
+            // Muc nuoc mua dot do hien tai (dong bo 1:1 voi man hinh OLED tren mach)
+            const currentMm = (tips * 0.64).toFixed(2);
+            const rateMmH = (tips > 0 && rain && rain.currentRateMmH !== undefined) ? rain.currentRateMmH.toFixed(1) : '0.0';
+            document.getElementById('val-rain').textContent = currentMm + ' mm (' + rateMmH + ' mm/h \u2022 ' + tips + ' l\u1EA7n l\u1EADt)';
           }
         }
       } catch (e) {

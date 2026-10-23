@@ -1,4 +1,4 @@
-import {
+﻿import {
   DeviceRecord,
   DeviceConfigurationRecord,
   MeasurementRecord,
@@ -881,8 +881,30 @@ export const dataStore = {
   },
 
   // ----------------------------------------------------
+  // ----------------------------------------------------
   // DATA PURGE / RESET
   // ----------------------------------------------------
+  async clearRainEvents(deviceId?: string): Promise<void> {
+    if (isDbConnected()) {
+      try {
+        const prisma = getPrismaClient();
+        if (deviceId) {
+          await prisma.rainEvent.deleteMany({ where: { deviceId } });
+        } else {
+          await prisma.rainEvent.deleteMany();
+        }
+      } catch (err) {
+        logger.error({ err }, 'Prisma error clearRainEvents');
+      }
+    }
+
+    if (deviceId) {
+      memoryStore.rainEvents = memoryStore.rainEvents.filter((r) => r.deviceId !== deviceId);
+    } else {
+      memoryStore.rainEvents = [];
+    }
+  },
+
   async clearTelemetryData(deviceId?: string): Promise<void> {
     if (isDbConnected()) {
       try {
