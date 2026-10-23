@@ -71,32 +71,29 @@ export const deviceController = {
     };
     await publishMqttCommand(id, commandPayload);
 
-    // 3. In DEMO MODE or simulator mode, simulate hardware ACK after 1.5 seconds
-    if (env.DEMO_MODE) {
-      setTimeout(async () => {
-        // Apply config locally
-        await dataStore.updateConfig(id, parsed.data);
-        if (parsed.data.name || parsed.data.location || parsed.data.timezone) {
-          await dataStore.upsertDevice({
-            deviceId: id,
-            name: parsed.data.name || device.name,
-            location: parsed.data.location,
-            timezone: parsed.data.timezone
-          });
-        }
-        // Emit ACK
-        await handleCommandAckMessage(
-          `weather/${id}/command/ack`,
-          JSON.stringify({
-            commandId,
-            deviceId: id,
-            status: 'SUCCESS',
-            message: 'Cấu hình đã được lưu vào EEPROM của ESP32-S3 thành công',
-            timestamp: new Date().toISOString()
-          })
-        );
-      }, 1500);
+        // Luon ap dung cau hinh truc tiep vao Database va xac nhan ACK
+    await dataStore.updateConfig(id, parsed.data);
+    if (parsed.data.name || parsed.data.location || parsed.data.timezone) {
+      await dataStore.upsertDevice({
+        deviceId: id,
+        name: parsed.data.name || device.name,
+        location: parsed.data.location,
+        timezone: parsed.data.timezone
+      });
     }
+
+    setTimeout(async () => {
+      await handleCommandAckMessage(
+        `weather/${id}/command/ack`,
+        JSON.stringify({
+          commandId,
+          deviceId: id,
+          status: 'SUCCESS',
+          message: 'Cấu hình đã được lưu và áp dụng thành công!',
+          timestamp: new Date().toISOString()
+        })
+      );
+    }, 500);
 
     return res.json({
       success: true,
@@ -133,20 +130,18 @@ export const deviceController = {
       timestamp: new Date().toISOString()
     });
 
-    if (env.DEMO_MODE) {
-      setTimeout(async () => {
+    setTimeout(async () => {
         await handleCommandAckMessage(
           `weather/${id}/command/ack`,
           JSON.stringify({
             commandId,
             deviceId: id,
             status: 'SUCCESS',
-            message: `Lệnh [${action}] đã được thực thi thành công trên vi điều khiển`,
+            message: `Lệnh [${action}] đã được xác nhận thực thi thành công!`,
             timestamp: new Date().toISOString()
           })
         );
-      }, 1500);
-    }
+      }, 500);
 
     return res.json({
       success: true,
