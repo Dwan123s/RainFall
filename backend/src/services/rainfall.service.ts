@@ -16,7 +16,7 @@ export class RainfallService {
     const device = await dataStore.getDevice(deviceId);
     const timezone = device?.timezone || 'Asia/Ho_Chi_Minh';
     const config = await dataStore.getConfig(deviceId);
-    const calibrationFactor = config?.rainMmPerTip ?? 0.64;
+    const calibrationFactor = (config?.rainMmPerTip && config.rainMmPerTip !== 0.25) ? config.rainMmPerTip : 0.64;
 
     const allEvents = await dataStore.getRainEvents(deviceId);
     const now = new Date();
@@ -164,7 +164,7 @@ export class RainfallService {
    */
   async getHourlyRainfall(deviceId: string, hours: number = 24) {
     const config = await dataStore.getConfig(deviceId);
-    const calibrationFactor = config?.rainMmPerTip ?? 0.64;
+    const calibrationFactor = (config?.rainMmPerTip && config.rainMmPerTip !== 0.25) ? config.rainMmPerTip : 0.64;
     const now = new Date();
     const fromTime = new Date(now.getTime() - hours * 3600 * 1000);
 
@@ -203,7 +203,7 @@ export class RainfallService {
    */
   async getDailyRainfall(deviceId: string, days: number = 7) {
     const config = await dataStore.getConfig(deviceId);
-    const calibrationFactor = config?.rainMmPerTip ?? 0.64;
+    const calibrationFactor = (config?.rainMmPerTip && config.rainMmPerTip !== 0.25) ? config.rainMmPerTip : 0.64;
     const now = new Date();
     const fromTime = new Date(now.getTime() - days * 24 * 3600 * 1000);
 

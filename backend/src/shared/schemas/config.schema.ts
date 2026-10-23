@@ -28,7 +28,7 @@ export const DeviceCreateSchema = z.object({
   name: z.string().min(1).max(100),
   location: z.string().default('Trạm quan trắc'),
   timezone: z.string().default('Asia/Ho_Chi_Minh'),
-  rainMmPerTip: z.number().positive().default(0.25),
+  rainMmPerTip: z.number().positive().default(0.64),
   sensorInterval: z.number().int().min(1).default(10),
   mqttInterval: z.number().int().min(5).default(30)
 });
