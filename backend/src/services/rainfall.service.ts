@@ -98,7 +98,7 @@ export class RainfallService {
 
     // Current 5-minute intensity
     const fiveMinMm = calculateRainfall(fiveMinTips, calibrationFactor);
-    const currentRateMmH = calculateRainRate(fiveMinMm, 5);
+    let currentRateMmH = calculateRainRate(fiveMinMm, 5);
 
     // Active rain event detection (any tips in past 15 min)
     let currentRainEvent: RainfallStatistics['currentRainEvent'] = undefined;
@@ -135,9 +135,16 @@ export class RainfallService {
 
         // If todayTips is 0 but latest measurement has totalRainTips > 0, sync todayTips
     const latestMeas = await dataStore.getLatestMeasurement(deviceId);
-    if (latestMeas && typeof latestMeas.totalRainTips === "number" && latestMeas.totalRainTips > todayTips) {
-      todayTips = latestMeas.totalRainTips;
-      if (todayTips > lifetimeTips) lifetimeTips = todayTips;
+    if (latestMeas && typeof latestMeas.totalRainTips === "number") {
+      if (latestMeas.totalRainTips === 0) {
+        // Khi ESP32 vua duoc reset ve 0 tren phan cung -> reset triet de toan bo chi so mua ve 0
+        todayTips = 0;
+        currentRateMmH = 0;
+        fiveMinTips = 0;
+      } else if (latestMeas.totalRainTips > todayTips) {
+        todayTips = latestMeas.totalRainTips;
+        if (todayTips > lifetimeTips) lifetimeTips = todayTips;
+      }
     }
 
     return {

@@ -382,10 +382,14 @@ export function renderStatusPageHtml(): string {
 
           if (meas || rain) {
             const tips = (meas && typeof meas.totalRainTips === 'number') ? meas.totalRainTips : 0;
-            // Muc nuoc mua dot do hien tai (dong bo 1:1 voi man hinh OLED tren mach)
-            const currentMm = (tips * 0.64).toFixed(2);
-            const rateMmH = (tips > 0 && rain && rain.currentRateMmH !== undefined) ? rain.currentRateMmH.toFixed(1) : '0.0';
-            document.getElementById('val-rain').textContent = currentMm + ' mm (' + rateMmH + ' mm/h \u2022 ' + tips + ' l\u1EA7n l\u1EADt)';
+            if (tips === 0) {
+              // Khi reset tren phan cung -> toan bo muc nuoc, cuong do va so lan lat deu ve 0
+              document.getElementById('val-rain').textContent = '0.00 mm (0.0 mm/h \u2022 0 l\u1EA7n l\u1EADt)';
+            } else {
+              const currentMm = (tips * 0.64).toFixed(2);
+              const rateMmH = (rain && rain.currentRateMmH !== undefined) ? rain.currentRateMmH.toFixed(1) : '0.0';
+              document.getElementById('val-rain').textContent = currentMm + ' mm (' + rateMmH + ' mm/h \u2022 ' + tips + ' l\u1EA7n l\u1EADt)';
+            }
           }
         }
       } catch (e) {

@@ -134,7 +134,8 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
     const prevTips = lastKnownTips.get(deviceId);
     const isHardwareReset =
       (prevResetSeq !== undefined && resetSeq > prevResetSeq) ||
-      (prevTips !== undefined && prevTips > 0 && totalRainTips === 0);
+      (prevTips !== undefined && prevTips > 0 && totalRainTips === 0) ||
+      (totalRainTips === 0 && resetSeq > 0);
 
     if (isHardwareReset) {
       logger.info({ deviceId, resetSeq, prevResetSeq }, 'Hardware rain reset signal received! Purging previous rain events...');
