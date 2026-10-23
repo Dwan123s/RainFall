@@ -156,6 +156,30 @@ export function renderStatusPageHtml(): string {
       padding: 22px 24px;
       margin-bottom: 24px;
     }
+        .btn-reset {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.18) 0%, rgba(220, 38, 38, 0.28) 100%);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+      padding: 6px 14px;
+      border-radius: 10px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn-reset:hover {
+      background: rgba(239, 68, 68, 0.4);
+      color: #ffffff;
+      border-color: #ef4444;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+    }
+    .btn-reset:active {
+      transform: translateY(0);
+    }
     .sensor-header {
       display: flex;
       justify-content: space-between;
@@ -271,10 +295,16 @@ export function renderStatusPageHtml(): string {
 
     <!-- Current Sensor Values Card -->
     <div class="sensor-card">
-      <div class="sensor-header">
-        <span class="sensor-title">Thông số cảm biến hiện tại</span>
-        <span id="data-time" class="sensor-time">Chưa có dữ liệu</span>
-      </div>
+        <div class="sensor-header">
+          <div>
+            <span class="sensor-title">Thông số cảm biến hiện tại</span>
+            <div id="data-time" class="sensor-time">Chưa có dữ liệu</div>
+          </div>
+          <button id="btn-reset-rain" class="btn-reset" onclick="handleResetRain()" title="Reset toàn bộ lượng mưa, cường độ và số lần lật về 0">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            <span>Reset Mưa</span>
+          </button>
+        </div>
 
       <div class="sensor-grid">
         <div class="sensor-item">
@@ -307,6 +337,28 @@ export function renderStatusPageHtml(): string {
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
+        async function handleResetRain() {
+      if (!confirm("Bạn có chắc chắn muốn RESET toàn bộ lượng mưa, cường độ và số lần lật về 0 không?")) return;
+      const btn = document.getElementById('btn-reset-rain');
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = '<span>Đang reset...</span>';
+      btn.disabled = true;
+      try {
+        const res = await fetch('/api/devices/reset-rain', { method: 'POST' });
+        if (res.ok) {
+          document.getElementById('val-rain').textContent = '0.00 mm (0.0 mm/h \u2022 0 l\u1EA7n l\u1EADt)';
+          await updateTelemetry();
+        } else {
+          alert('Không thể thực hiện reset lúc này.');
+        }
+      } catch (e) {
+        alert('Lỗi kết nối tới máy chủ khi reset.');
+      } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+      }
+    }
+
     async function updateStatus() {
       try {
         const res = await fetch('/api/system/status');

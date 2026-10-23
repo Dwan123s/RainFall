@@ -31,6 +31,8 @@ apiRouter.get('/devices/:id/config', deviceController.getConfig);
 apiRouter.patch('/devices/:id/config', deviceController.updateConfig);
 apiRouter.post('/devices/:id/command', deviceController.sendCommand);
 apiRouter.get('/devices/:id/commands', deviceController.getCommands);
+apiRouter.post('/devices/reset-rain', deviceController.resetRainOnly);
+apiRouter.post('/devices/:id/reset-rain', deviceController.resetRainOnly);
 apiRouter.post('/devices/:id/reset-data', deviceController.resetData);
 
 // Telemetry & Environmental Analytics

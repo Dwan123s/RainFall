@@ -1,3 +1,5 @@
+import { rainfallService } from '../services/rainfall.service';
+import { emitRainUpdate } from '../socket/io';
 import { Request, Response } from 'express';
 import { DeviceConfigUpdateSchema, DeviceCreateSchema } from '../shared';
 import { dataStore } from '../db/store';
@@ -164,6 +166,37 @@ export const deviceController = {
     return res.json({
       success: true,
       message: `Đã xóa toàn bộ dữ liệu quan trắc giả lập của trạm ${id}. Thiết bị đã được chuyển sang chế độ chờ kết nối ESP32-S3.`
+    });
+  },
+  async resetRainOnly(req: Request, res: Response) {
+    const targetId = req.params.id || env.DEFAULT_STATION_ID;
+    const targets = [targetId, 'RS-ESP32S3-01', 'station01', 'weather-F47723AD4F7C'].filter(Boolean);
+    const uniqueTargets = Array.from(new Set(targets));
+
+    for (const tid of uniqueTargets) {
+      await dataStore.clearRainEvents(tid);
+      const meas = await dataStore.getLatestMeasurement(tid);
+      if (meas) {
+        await dataStore.saveMeasurement({
+          deviceId: tid,
+          messageId: `reset-rain-${Date.now()}-${tid}`,
+          timestamp: new Date().toISOString(),
+          temperature: meas.temperature,
+          humidity: meas.humidity,
+          pressure: meas.pressure,
+          wifiRssi: meas.wifiRssi,
+          uptime: meas.uptime,
+          totalRainTips: 0,
+          rainRate: 0
+        });
+      }
+      const stats = await rainfallService.getStatistics(tid);
+      emitRainUpdate(tid, null, stats);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Đã reset toàn bộ thông số lượng mưa, cường độ và số lần lật về 0 thành công!'
     });
   }
 };
