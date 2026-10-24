@@ -239,15 +239,13 @@ void loop() {
       HUMIDITY_OFFSET += 1.0;
       readEnvSensors();
       updateOledDisplay(getTipCount());
-      Serial.printf("[CALIB] Tang bu tru: HUMIDITY_OFFSET = %.1f%% | Do am OLED: %.1f%%
-", HUMIDITY_OFFSET, currentHum);
+      Serial.printf("[CALIB] Tang bu tru: HUMIDITY_OFFSET = %.1f%% | Do am OLED: %.1f%%", HUMIDITY_OFFSET, currentHum);
     }
     if (c == '-' || c == '_') {
       HUMIDITY_OFFSET -= 1.0;
       readEnvSensors();
       updateOledDisplay(getTipCount());
-      Serial.printf("[CALIB] Giam bu tru: HUMIDITY_OFFSET = %.1f%% | Do am OLED: %.1f%%
-", HUMIDITY_OFFSET, currentHum);
+      Serial.printf("[CALIB] Giam bu tru: HUMIDITY_OFFSET = %.1f%% | Do am OLED: %.1f%%", HUMIDITY_OFFSET, currentHum);
     }
   }
 
