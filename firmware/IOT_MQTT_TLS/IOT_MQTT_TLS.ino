@@ -3,6 +3,7 @@
 #include <Adafruit_SH110X.h>
 #include <Adafruit_BME280.h>
 #include <WiFi.h>
+#include <WiFiMulti.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <time.h>
@@ -12,24 +13,32 @@
 #include <freertos/task.h>
 #include <freertos/queue.h>
 
-// --- CẤU HÌNH WI-FI / EMQX CLOUD: ĐIỀN CÁC MỤC NÀY ---
-const char WIFI_SSID[] = "P104";
-const char WIFI_PASSWORD[] = "fptxinchao";
-// Chỉ hostname từ Overview, không thêm mqtts://, https:// hay :8883.
+// --- CẤU HÌNH DANH SÁCH NHIỀU MẠNG WI-FI ---
+// ESP32-S3 sẽ tự động quét và kết nối vào mạng có sóng mạnh nhất và khả dụng nhất.
+// Nếu mạng này mất, mạch tự động chuyển sang mạng tiếp theo trong danh sách mà không cần reset.
+struct WifiCredential {
+  const char *ssid;
+  const char *password;
+};
+
+const WifiCredential WIFI_NETWORKS[] = {
+  {"FPT", "29082006"},         // Mạng FPT
+  {"P104", "fptxinchao"},      // Mạng P104 (phòng lab / phòng học)
+  {"DienThoai", "12345678"},   // Phát Hotspot 4G từ điện thoại dự phòng (đổi tên/pass nếu cần)
+  {"WiFi_Nha", "12345678"}     // Mạng ở nhà nếu có
+};
+const size_t NUM_WIFI_NETWORKS = sizeof(WIFI_NETWORKS) / sizeof(WIFI_NETWORKS[0]);
+
+// --- CẤU HÌNH EMQX CLOUD (TLS PORT 8883) ---
 const char MQTT_HOST[] = "i1c0bdef.ala.asia-southeast1.emqxsl.com";
 const uint16_t MQTT_PORT = 8883;
-// Tài khoản Client Authentication của deployment, không phải tài khoản web EMQX.
 const char MQTT_USERNAME[] = "ESP32_RAINFALL";
 const char MQTT_PASSWORD[] = "123456789";
-// Đổi station01 cho mỗi trạm nếu có nhiều thiết bị.
 const char MQTT_DATA_TOPIC[] = "weather/station01/data";
 const char MQTT_STATUS_TOPIC[] = "weather/station01/status";
 
-// Tải CA certificate của deployment từ trang Overview của EMQX Cloud.
-// Thay PASTE_EMQX_CA_CERT_HERE bằng TOÀN BỘ nội dung file PEM, gồm cả
-// -----BEGIN CERTIFICATE----- và -----END CERTIFICATE-----.
+// Chứng chỉ gốc CA của EMQX Cloud
 const char MQTT_ROOT_CA[] = R"EOF(
-
 -----BEGIN CERTIFICATE-----
 MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh
 MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
@@ -52,17 +61,15 @@ Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91
 pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl
 MrY=
 -----END CERTIFICATE-----
-
 )EOF";
 
 const uint32_t MQTT_PUBLISH_INTERVAL_MS = 10000;
 const uint32_t MQTT_EVENT_MIN_INTERVAL_MS = 1000;
-const uint32_t WIFI_RETRY_INTERVAL_MS = 15000;
+const uint32_t WIFI_RETRY_INTERVAL_MS = 10000;
 const uint32_t MQTT_RETRY_MIN_MS = 5000;
 const uint32_t MQTT_RETRY_MAX_MS = 60000;
 
-// Queue chỉ giữ bản đo mới nhất. Chỉ loop() đọc cảm biến / cập nhật OLED;
-// chỉ networkTask() dùng WiFiClientSecure và PubSubClient.
+// Queue lưu bản đo mới nhất
 struct TelemetrySnapshot {
   int tips;
   float temperature;
@@ -98,7 +105,7 @@ Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, 
 Adafruit_BME280 bme;
 
 // --- BIẾN ĐO MƯA ---
-const float RAINFALL_PER_TIP = 0.64;          // 0.2 mm nước / lần lật
+const float RAINFALL_PER_TIP = 0.64;          // 0.64 mm nước / lần lật
 volatile int tipCount = 0;
 volatile unsigned long lastTipTime = 0;
 const unsigned long DEBOUNCE_DELAY = 200;    // Khóa chống dội 200ms
@@ -112,7 +119,7 @@ float currentPress = 0.0;
 unsigned long lastBmeReadTime = 0;
 bool bmeFound = false;
 
-// Biến cho nút BOOT (đọc không chặn)
+// Biến cho nút BOOT (Reset)
 bool lastButtonState = HIGH;
 unsigned long lastButtonChange = 0;
 
@@ -139,8 +146,6 @@ void resetRain();
 
 void setup() {
   Serial.begin(115200);
-  // Không để Serial chặn chương trình khi buffer đầy / không có máy tính đọc
-  // (nếu báo lỗi biên dịch ở dòng này thì xóa dòng này đi)
   Serial.setTxTimeoutMs(0);
 
   unsigned long startWait = millis();
@@ -190,7 +195,7 @@ void loop() {
   int tips = getTipCount();
   if (tips != lastDisplayedTipCount) {
     lastDisplayedTipCount = tips;
-    updateOledDisplay(tips);   // Vẽ màn hình trước
+    updateOledDisplay(tips);
     Serial.printf("[MUA] GAU LAT! So lan: %d | Luong: %.2f mm\n", tips, tips * RAINFALL_PER_TIP);
   }
 
@@ -201,7 +206,7 @@ void loop() {
     updateOledDisplay(getTipCount());
   }
 
-  // 3. NÚT BOOT: phát hiện cạnh xuống, không chặn chương trình
+  // 3. NÚT BOOT: nhấn để reset lượng mưa về 0
   bool btn = digitalRead(BOOT_BUTTON_PIN);
   if (btn != lastButtonState && (currentTime - lastButtonChange) > 40) {
     lastButtonChange = currentTime;
@@ -220,7 +225,6 @@ void loop() {
   }
 
   captureTelemetry();
-  // Nhường CPU cho tác vụ mạng, kể cả trên ESP32 một lõi.
   delay(1);
 }
 
@@ -236,8 +240,8 @@ void resetRain() {
   noInterrupts();
   tipCount = 0;
   interrupts();
-  lastDisplayedTipCount = 0;   // Đã khớp với tipCount nên loop() không in thêm dòng thừa
-  rainResetSequence++;        // Báo MQTT kể cả khi reset lúc lượng mưa đã bằng 0.
+  lastDisplayedTipCount = 0;
+  rainResetSequence++;
   Serial.println("\n>>> DA RESET LUONG MUA VE 0 <<<\n");
   updateOledDisplay(0);
 }
@@ -250,7 +254,7 @@ void updateOledDisplay(int tips) {
 
   // Tiêu đề
   display.setCursor(10, 4);
-  display.print("TRAM KHI TUONG IOT");
+  display.print("TRAM DO LUONG MUA");
   display.drawLine(0, 14, 128, 14, SH110X_WHITE);
 
   // Nhiệt độ & Độ ẩm
@@ -265,7 +269,7 @@ void updateOledDisplay(int tips) {
 
   display.drawLine(0, 42, 128, 42, SH110X_WHITE);
 
-  // Lượng mưa (trái) và số lần lật (phải) tách cột để không bị tràn
+  // Lượng mưa (trái) và số lần lật (phải)
   display.setCursor(5, 48);
   display.printf("Mua:%.1fmm", rainMm);
   display.setCursor(82, 48);
@@ -274,11 +278,19 @@ void updateOledDisplay(int tips) {
   display.display();
 }
 
-// ===================== PHẦN WI-FI / MQTT BỔ SUNG =====================
+// ===================== PHẦN WI-FI MULTI / MQTT BỔ SUNG =====================
 
 bool networkConfigReady() {
-  return WIFI_SSID[0] != '\0' && strcmp(WIFI_SSID, "YOUR_WIFI_SSID") != 0 &&
-         strcmp(WIFI_PASSWORD, "YOUR_WIFI_PASSWORD") != 0 &&
+  bool hasValidWifi = false;
+  for (size_t i = 0; i < NUM_WIFI_NETWORKS; i++) {
+    if (WIFI_NETWORKS[i].ssid && WIFI_NETWORKS[i].ssid[0] != '\0' &&
+        strcmp(WIFI_NETWORKS[i].ssid, "YOUR_WIFI_SSID") != 0) {
+      hasValidWifi = true;
+      break;
+    }
+  }
+
+  return hasValidWifi &&
          MQTT_HOST[0] != '\0' && strstr(MQTT_HOST, "YOUR_") == nullptr &&
          MQTT_USERNAME[0] != '\0' &&
          strcmp(MQTT_USERNAME, "YOUR_MQTT_USERNAME") != 0 &&
@@ -302,8 +314,6 @@ void startNetwork() {
     return;
   }
   captureTelemetry();
-  // Stack của xTaskCreate trên ESP32 tính theo byte. Không ghim lõi để hỗ trợ
-  // cả ESP32-S3 hai lõi và ESP32-C3 một lõi; tác vụ luôn nhường CPU khi chờ.
   if (xTaskCreate(networkTask, "wifi_mqtt", 12288, nullptr, 1, nullptr) != pdPASS) {
     vQueueDelete(telemetryQueue);
     telemetryQueue = nullptr;
@@ -345,7 +355,6 @@ bool publishTelemetry(PubSubClient &mqtt, const TelemetrySnapshot &sample,
   jsonNumber(sample.bmePresent ? sample.humidity : NAN, humidity, sizeof(humidity));
   jsonNumber(sample.bmePresent ? sample.pressure : NAN, pressure, sizeof(pressure));
   char payload[640];
-  // published_at_unix là thời điểm gửi; uptime_ms là thời điểm chụp bản đo.
   const int length = snprintf(
       payload, sizeof(payload),
       "{\"device_id\":\"%s\",\"temperature_c\":%s,\"humidity_pct\":%s,"
@@ -362,7 +371,6 @@ bool publishTelemetry(PubSubClient &mqtt, const TelemetrySnapshot &sample,
     Serial.println("[MQTT] JSON qua dai, khong gui ban tin bi cat.");
     return false;
   }
-  // Retain để người subscribe nhận được bản đo gần nhất. PubSubClient publish QoS 0.
   const bool sent = mqtt.publish(MQTT_DATA_TOPIC, payload, true);
   if (sent) Serial.printf("[MQTT] Da gui: %s\n", payload);
   else Serial.println("[MQTT] Gui that bai, se thu lai.");
@@ -374,23 +382,32 @@ void networkTask(void *parameter) {
   WiFiClientSecure tlsClient;
   PubSubClient mqtt(tlsClient);
   tlsClient.setCACert(MQTT_ROOT_CA);
-  tlsClient.setHandshakeTimeout(8);  // Giây; handshake chỉ chặn task mạng.
+  tlsClient.setHandshakeTimeout(8);
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setKeepAlive(30);
-  mqtt.setSocketTimeout(3);          // Giây chờ phản hồi MQTT.
+  mqtt.setSocketTimeout(3);
   if (!mqtt.setBufferSize(1024)) {
     Serial.println("[MQTT] Khong du RAM tao buffer. Tram van chay offline.");
     vTaskDelete(nullptr);
     return;
   }
 
+  // Khởi tạo WiFiMulti quản lý nhiều mạng WiFi
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.println("[WiFi] Dang ket noi...");
 
-  // MAC tạo Client ID riêng để các ESP32 không đá kết nối của nhau.
+  WiFiMulti wifiMulti;
+  for (size_t i = 0; i < NUM_WIFI_NETWORKS; i++) {
+    if (WIFI_NETWORKS[i].ssid && WIFI_NETWORKS[i].ssid[0] != '\0') {
+      wifiMulti.addAP(WIFI_NETWORKS[i].ssid, WIFI_NETWORKS[i].password);
+      Serial.printf("[WiFi] Da dang ky mang WiFi: %s\n", WIFI_NETWORKS[i].ssid);
+    }
+  }
+
+  Serial.println("[WiFi] Dang quet va ket noi vao mang WiFi manh nhat...");
+  wifiMulti.run();
+
   const uint64_t chipId = ESP.getEfuseMac();
   char clientId[40];
   snprintf(clientId, sizeof(clientId), "weather-%04X%08lX",
@@ -413,19 +430,19 @@ void networkTask(void *parameter) {
 
   for (;;) {
     uint32_t now = millis();
+
+    // Kiểm tra kết nối WiFi bằng WiFiMulti
     if (WiFi.status() != WL_CONNECTED) {
       if (wifiWasConnected) {
-        Serial.println("[WiFi] Mat ket noi, dang thu lai...");
-        // Đóng socket không gửi DISCONNECT để broker phát Last Will offline.
+        Serial.println("[WiFi] Mat ket noi, dang quet mang du phong khac...");
         tlsClient.stop();
         wifiWasConnected = false;
         forcePublish = true;
       }
       if (uint32_t(now - lastWifiAttempt) >= WIFI_RETRY_INTERVAL_MS) {
-        WiFi.disconnect();
-        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
         lastWifiAttempt = millis();
-        Serial.println("[WiFi] Thu ket noi lai...");
+        Serial.println("[WiFi] Dang thu ket noi vao mang WiFi tot nhat...");
+        wifiMulti.run();
       }
       vTaskDelay(pdMS_TO_TICKS(100));
       continue;
@@ -433,18 +450,18 @@ void networkTask(void *parameter) {
 
     if (!wifiWasConnected) {
       wifiWasConnected = true;
-      Serial.printf("[WiFi] Da ket noi. IP: %s\n", WiFi.localIP().toString().c_str());
+      Serial.printf("[WiFi] Da ket noi thanh cong! SSID: %s | IP: %s | RSSI: %d dBm\n",
+                    WiFi.SSID().c_str(), WiFi.localIP().toString().c_str(), WiFi.RSSI());
       mqttRetryMs = MQTT_RETRY_MIN_MS;
       lastMqttAttempt = now - mqttRetryMs;
       if (!timeSyncStarted) {
-        // SNTP chạy nền và tự đồng bộ lại; không chờ giờ bằng vòng while.
         configTime(0, 0, "pool.ntp.org", "time.cloudflare.com", "time.google.com");
         timeSyncStarted = true;
       }
     }
 
-    // Cần giờ hợp lệ để kiểm tra ngày hiệu lực chứng chỉ TLS.
-    if (time(nullptr) < 1704067200LL) {  // 2024-01-01 UTC
+    // Chờ NTP sync giờ
+    if (time(nullptr) < 1704067200LL) {
       if (uint32_t(now - lastTimeNotice) >= 30000UL) {
         lastTimeNotice = now;
         Serial.println("[TLS] Dang doi NTP. Kiem tra Internet / UDP 123 neu cho lau.");
@@ -453,13 +470,13 @@ void networkTask(void *parameter) {
       continue;
     }
 
+    // Kết nối MQTT Broker
     if (!mqtt.connected()) {
       if (uint32_t(now - lastMqttAttempt) >= mqttRetryMs) {
         tlsClient.stop();
         Serial.printf("[MQTT] Ket noi TLS %s:%u...\n", MQTT_HOST, MQTT_PORT);
         const bool connected = mqtt.connect(clientId, MQTT_USERNAME, MQTT_PASSWORD,
                                              MQTT_STATUS_TOPIC, 1, true, "offline");
-        // Tính khoảng chờ từ khi lần thử hoàn tất, tránh thử liên tục khi timeout.
         lastMqttAttempt = millis();
         if (connected) {
           mqttRetryMs = MQTT_RETRY_MIN_MS;
@@ -491,7 +508,7 @@ void networkTask(void *parameter) {
       continue;
     }
 
-    // Đọc lại queue SAU các thao tác mạng có thể chờ để lấy bản đo mới nhất.
+    // Đọc telemetry từ queue và publish lên MQTT
     if (xQueuePeek(telemetryQueue, &sample, 0) == pdTRUE) {
       now = millis();
       const bool rainChanged = !havePublished || sample.tips != lastSentTips ||
