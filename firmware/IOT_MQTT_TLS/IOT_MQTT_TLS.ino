@@ -180,10 +180,9 @@ void setup() {
 
   // 2. Khởi tạo BME280 với kiểm tra tự động cả 2 địa chỉ 0x76 và 0x77
   delay(50);
+  diagnoseBME();
   if (initBME()) {
     readEnvSensors();
-  } else {
-    diagnoseBME();
   }
 
   updateOledDisplay(getTipCount());
@@ -224,6 +223,11 @@ void loop() {
     if (c == 'r' || c == 'R') {
       resetRain();
     }
+    if (c == 'b' || c == 'B') {
+      Serial.println("\n>>> DANG CHAN DOAN VA KHOI TAO LAI BME280... <<<");
+      diagnoseBME();
+      initBME();
+    }
   }
 
   captureTelemetry();
@@ -231,15 +235,23 @@ void loop() {
 }
 
 bool initBME() {
-  if (bme.begin(0x76, &Wire)) {
-    bmeFound = true;
-    Serial.println("[BME280] Khoi tao thanh cong tai dia chi 0x76!");
-    return true;
-  }
-  if (bme.begin(0x77, &Wire)) {
-    bmeFound = true;
-    Serial.println("[BME280] Khoi tao thanh cong tai dia chi 0x77!");
-    return true;
+  // Thử lần lượt địa chỉ 0x76 và 0x77
+  uint8_t addrs[] = {0x76, 0x77};
+  for (int i = 0; i < 2; i++) {
+    if (bme.begin(addrs[i], &Wire)) {
+      bmeFound = true;
+      // BẮT BUỘC gọi setSampling: Kích hoạt thanh ghi ctrl_hum (0xF2)
+      // Nếu không cấu hình, thanh ghi độ ẩm mặc định ở 0x00 (Skipped) khiến readHumidity bị khóa ở 100%
+      bme.setSampling(Adafruit_BME280::MODE_NORMAL,
+                      Adafruit_BME280::SAMPLING_X2,  // Nhiệt độ: oversampling x2
+                      Adafruit_BME280::SAMPLING_X16, // Khí áp: oversampling x16
+                      Adafruit_BME280::SAMPLING_X1,  // Độ ẩm: BẬT oversampling x1
+                      Adafruit_BME280::FILTER_X16,
+                      Adafruit_BME280::STANDBY_MS_0_5);
+      Serial.printf("[BME280] Khoi tao va kich hoat do am thanh cong tai 0x%02X!
+", addrs[i]);
+      return true;
+    }
   }
   bmeFound = false;
   return false;
@@ -256,20 +268,47 @@ void diagnoseBME() {
     if (err == 0) {
       foundAny = true;
       Serial.printf("[I2C] Phat hien thiet bi tai dia chi 0x%02X!\n", addr);
-      // Đọc thanh ghi Chip ID (0xD0)
+      // 1. Đọc thanh ghi Chip ID (0xD0)
       Wire.beginTransmission(addr);
       Wire.write(0xD0);
       if (Wire.endTransmission() == 0) {
         Wire.requestFrom((int)addr, 1);
         if (Wire.available()) {
           byte chipId = Wire.read();
-          Serial.printf("      Chip ID doc duoc: 0x%02X\n", chipId);
+          Serial.printf("      Chip ID: 0x%02X", chipId);
           if (chipId == 0x60) {
-            Serial.println("      => Day chinh xac la chip BME280.");
+            Serial.println(" (Chuan chip BME280 co Do Am)");
           } else if (chipId == 0x58 || chipId == 0x56 || chipId == 0x57) {
-            Serial.println("      => LUU Y: Day la chip BMP280 (chi co Nhiet do/Ap suat, KHONG co Do am).");
+            Serial.println(" (CHU Y: Day la chip BMP280, KHONG CO CAM BIEN DO AM)");
           } else {
-            Serial.printf("      => Chip ID 0x%02X khong khop 0x60 cua BME280.\n", chipId);
+            Serial.printf(" (Chip ID: 0x%02X khac 0x60)\n", chipId);
+          }
+        }
+      }
+      // 2. Đọc thanh ghi ctrl_hum (0xF2)
+      Wire.beginTransmission(addr);
+      Wire.write(0xF2);
+      if (Wire.endTransmission() == 0) {
+        Wire.requestFrom((int)addr, 1);
+        if (Wire.available()) {
+          byte ctrlHum = Wire.read();
+          Serial.printf("      ctrl_hum (0xF2): 0x%02X (%s)\n", ctrlHum, ctrlHum == 0 ? "0x00=Skipped/Chua bat" : "Dang bat");
+        }
+      }
+      // 3. Đọc dữ liệu độ ẩm thô (0xFD, 0xFE)
+      Wire.beginTransmission(addr);
+      Wire.write(0xFD);
+      if (Wire.endTransmission() == 0) {
+        Wire.requestFrom((int)addr, 2);
+        if (Wire.available() >= 2) {
+          byte hMsb = Wire.read();
+          byte hLsb = Wire.read();
+          uint16_t rawHum = (hMsb << 8) | hLsb;
+          Serial.printf("      Raw Humidity ADC (0xFD-0xFE): 0x%04X (%u)\n", rawHum, rawHum);
+          if (rawHum == 0x8000) {
+            Serial.println("      => [!] 0x8000: Do am chua duoc kich hoat tren chip.");
+          } else if (rawHum == 0xFFFF) {
+            Serial.println("      => [!] 0xFFFF: Cam bien bi bao hoa kich tran (Do nuoc dong trong lo kim loai hoac loi phan cung).");
           }
         }
       }
