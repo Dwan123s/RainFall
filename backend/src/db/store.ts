@@ -329,6 +329,17 @@ export const dataStore = {
     return memoryStore.processedMessageIds.has(messageId);
   },
 
+  markMessageProcessed(messageId: string): void {
+    memoryStore.processedMessageIds.add(messageId);
+    if (memoryStore.processedMessageIds.size > 10000) {
+      const it = memoryStore.processedMessageIds.values();
+      for (let i = 0; i < 2000; i++) {
+        const val = it.next().value;
+        if (val) memoryStore.processedMessageIds.delete(val);
+      }
+    }
+  },
+
   async saveMeasurement(data: {
     deviceId: string;
     messageId: string;

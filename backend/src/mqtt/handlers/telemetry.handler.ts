@@ -74,6 +74,7 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
       logger.debug({ messageId }, 'Duplicate telemetry message ignored');
       return;
     }
+    dataStore.markMessageProcessed(messageId);
 
     // Auto-create/ensure device in database
     await dataStore.upsertDevice({
@@ -157,7 +158,7 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
         for (const tid of targets) {
           const savedEvent = await dataStore.saveRainEvent({
             deviceId: tid,
-            eventId: `rain-${tid}-${Date.now()}-${increment}`,
+            eventId: `rain-${tid}-${messageId}-${totalRainTips}`,
             timestamp,
             tipCount: increment,
             calibrationFactor: 0.64

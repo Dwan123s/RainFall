@@ -141,7 +141,8 @@ export class RainfallService {
         todayTips = 0;
         currentRateMmH = 0;
         fiveMinTips = 0;
-      } else if (latestMeas.totalRainTips > todayTips) {
+      } else {
+        // Luon dong bo chuan xac theo so lan lat thuc te tu phan cung ESP32-S3
         todayTips = latestMeas.totalRainTips;
         if (todayTips > lifetimeTips) lifetimeTips = todayTips;
       }

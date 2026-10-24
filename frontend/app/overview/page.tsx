@@ -347,7 +347,7 @@ export default function OverviewPage() {
           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span>Tổng nhịp lật gầu:</span>
             <span className="font-mono text-cyan-600 dark:text-cyan-400 font-medium">
-              {rainfall?.totalTipsToday ?? 0} nhịp ({rainfall?.calibrationFactor ?? 0.25} mm/tip)
+              {rainfall?.totalTipsToday ?? 0} nhịp ({rainfall?.calibrationFactor ?? 0.64} mm/tip)
             </span>
           </div>
         </div>

@@ -239,8 +239,7 @@ export function initMqttClient(): MqttClient | null {
         `${prefix}/+/rain`,
         `${prefix}/+/status`,
         `${prefix}/+/command/ack`,
-        `${prefix}/+/config`,
-        `${prefix}/#`
+        `${prefix}/+/config`
       ];
 
       client?.subscribe(subscribedTopics, (err) => {
