@@ -165,7 +165,8 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
           });
           if (savedEvent) {
             const stats = await rainfallService.getStatistics(tid);
-            emitRainUpdate(tid, savedEvent, stats);
+            const isPrimary = (tid === env.DEFAULT_STATION_ID || (!env.DEFAULT_STATION_ID && tid === deviceId));
+            emitRainUpdate(tid, savedEvent, stats, isPrimary);
           }
         }
       }
@@ -177,8 +178,9 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
 
     if (saved) {
       // Broadcast to connected frontend clients in real time
-      emitTelemetryUpdate(deviceId, saved, {
-        deviceId,
+      const primaryId = env.DEFAULT_STATION_ID || deviceId;
+      emitTelemetryUpdate(primaryId, saved, {
+        deviceId: primaryId,
         messageId,
         timestamp,
         temperature,

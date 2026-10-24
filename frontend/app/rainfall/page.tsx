@@ -86,7 +86,7 @@ export default function RainfallPage() {
             <span>{rainCategory.labelVi}</span>
           </span>
           <span className="px-3 py-1 rounded-full text-xs font-mono bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-            Hiệu chuẩn: {stats?.calibrationFactor ?? 0.25} mm/lần lật
+            Hiệu chuẩn: {stats?.calibrationFactor ?? 0.64} mm/lần lật
           </span>
         </div>
       </div>

@@ -62,11 +62,14 @@ export function emitTelemetryUpdate(
 export function emitRainUpdate(
   deviceId: string,
   rainEvent: RainEventRecord | null,
-  statistics: RainfallStatistics
+  statistics: RainfallStatistics,
+  broadcastGlobal: boolean = true
 ) {
   if (!ioInstance) return;
   ioInstance.to(`station:${deviceId}`).emit('rain:update', { deviceId, rainEvent, statistics });
-  ioInstance.emit('rain:broadcast', { deviceId, rainEvent, statistics });
+  if (broadcastGlobal) {
+    ioInstance.emit('rain:broadcast', { deviceId, rainEvent, statistics });
+  }
 }
 
 export function emitDeviceStatus(

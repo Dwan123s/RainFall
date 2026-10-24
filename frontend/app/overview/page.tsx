@@ -68,16 +68,48 @@ export default function OverviewPage() {
     refetchInterval: 20000
   });
 
-  // Real-time Socket.IO subscriptions
+  // Real-time Socket.IO subscriptions with monotonic rain guard and debounced server sync
   useEffect(() => {
     const socket = getSocket();
+    let debounceTimer: NodeJS.Timeout | null = null;
+
+    const triggerDebouncedRefetch = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['hourlyRain'] });
+        queryClient.invalidateQueries({ queryKey: ['rainfall'] });
+        queryClient.invalidateQueries({ queryKey: ['telemetrySeries'] });
+      }, 2500);
+    };
 
     const handleTelemetryUpdate = (data: any) => {
+      if (!data || !data.measurement) return;
       queryClient.setQueryData(['dashboardSummary'], (prev: any) => {
         if (!prev) return prev;
+
+        // Immediate local sync for rain tips to prevent lag or jumping
+        const tips = data.measurement.totalRainTips;
+        const prevRainfall = prev.rainfall;
+        const currentTips = prevRainfall?.totalTipsToday ?? 0;
+        const factor = prevRainfall?.calibrationFactor || 0.64;
+
+        let updatedRainfall = prevRainfall;
+        if (typeof tips === 'number') {
+          // Monotonic guard: only update if tips increment or reset to 0
+          if (tips >= currentTips || tips === 0) {
+            updatedRainfall = {
+              ...prevRainfall,
+              totalTipsToday: tips,
+              todayMm: Number((tips * factor).toFixed(2)),
+              currentRateMmH: data.measurement.rainRate !== undefined ? data.measurement.rainRate : (prevRainfall?.currentRateMmH ?? 0)
+            };
+          }
+        }
+
         return {
           ...prev,
           latestMeasurement: data.measurement,
+          rainfall: updatedRainfall,
           device: {
             ...prev.device,
             wifiRssi: data.measurement.wifiRssi,
@@ -86,25 +118,36 @@ export default function OverviewPage() {
           }
         };
       });
-      queryClient.invalidateQueries({ queryKey: ['telemetrySeries'] });
+
+      triggerDebouncedRefetch();
     };
 
     const handleRainUpdate = (data: any) => {
+      if (!data || !data.statistics) return;
       queryClient.setQueryData(['dashboardSummary'], (prev: any) => {
         if (!prev) return prev;
+        const incomingTips = data.statistics.totalTipsToday ?? 0;
+        const currentTips = prev.rainfall?.totalTipsToday ?? 0;
+
+        // Monotonic guard: never allow incoming tips to decrease unless an intentional reset (0) occurred
+        if (incomingTips < currentTips && incomingTips !== 0) {
+          return prev;
+        }
+
         return {
           ...prev,
           rainfall: data.statistics
         };
       });
-      queryClient.invalidateQueries({ queryKey: ['hourlyRain'] });
-      queryClient.invalidateQueries({ queryKey: ['rainfall'] });
+
+      triggerDebouncedRefetch();
     };
 
     socket.on('telemetry:broadcast', handleTelemetryUpdate);
     socket.on('rain:broadcast', handleRainUpdate);
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       socket.off('telemetry:broadcast', handleTelemetryUpdate);
       socket.off('rain:broadcast', handleRainUpdate);
     };
