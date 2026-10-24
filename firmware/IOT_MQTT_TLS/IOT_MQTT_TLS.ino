@@ -23,9 +23,7 @@ struct WifiCredential {
 
 const WifiCredential WIFI_NETWORKS[] = {
   {"FPT", "29082006"},         // Mạng FPT
-  {"P104", "fptxinchao"},      // Mạng P104 (phòng lab / phòng học)
-  {"DienThoai", "12345678"},   // Phát Hotspot 4G từ điện thoại dự phòng (đổi tên/pass nếu cần)
-  {"WiFi_Nha", "12345678"}     // Mạng ở nhà nếu có
+  {"P104", "fptxinchao"},      // Mạng P104 
 };
 const size_t NUM_WIFI_NETWORKS = sizeof(WIFI_NETWORKS) / sizeof(WIFI_NETWORKS[0]);
 
@@ -143,6 +141,8 @@ int getTipCount() {
 void readEnvSensors();
 void updateOledDisplay(int tips);
 void resetRain();
+bool initBME();
+void diagnoseBME();
 
 void setup() {
   Serial.begin(115200);
@@ -153,8 +153,10 @@ void setup() {
     delay(10);
   }
 
+  // Khởi tạo I2C với tốc độ 100kHz (chuẩn an toàn, chống nhiễu cho BME280 trên dây cắm)
   Wire.begin(I2C_SDA, I2C_SCL);
-  Wire.setClock(400000);
+  Wire.setClock(100000);
+  delay(100);
 
   pinMode(HALL_PIN, INPUT_PULLUP);
   pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);
@@ -176,12 +178,12 @@ void setup() {
     delay(600);
   }
 
-  // 2. Khởi tạo BME280
-  if (bme.begin(0x76, &Wire) || bme.begin(0x77, &Wire)) {
-    bmeFound = true;
+  // 2. Khởi tạo BME280 với kiểm tra tự động cả 2 địa chỉ 0x76 và 0x77
+  delay(50);
+  if (initBME()) {
     readEnvSensors();
   } else {
-    Serial.println("[!] Khong tim thay BME280.");
+    diagnoseBME();
   }
 
   updateOledDisplay(getTipCount());
@@ -228,11 +230,82 @@ void loop() {
   delay(1);
 }
 
+bool initBME() {
+  if (bme.begin(0x76, &Wire)) {
+    bmeFound = true;
+    Serial.println("[BME280] Khoi tao thanh cong tai dia chi 0x76!");
+    return true;
+  }
+  if (bme.begin(0x77, &Wire)) {
+    bmeFound = true;
+    Serial.println("[BME280] Khoi tao thanh cong tai dia chi 0x77!");
+    return true;
+  }
+  bmeFound = false;
+  return false;
+}
+
+void diagnoseBME() {
+  Serial.println("\n--- [CHAN DOAN I2C & BME280] ---");
+  byte addresses[] = {0x76, 0x77};
+  bool foundAny = false;
+  for (byte i = 0; i < 2; i++) {
+    byte addr = addresses[i];
+    Wire.beginTransmission(addr);
+    byte err = Wire.endTransmission();
+    if (err == 0) {
+      foundAny = true;
+      Serial.printf("[I2C] Phat hien thiet bi tai dia chi 0x%02X!\n", addr);
+      // Đọc thanh ghi Chip ID (0xD0)
+      Wire.beginTransmission(addr);
+      Wire.write(0xD0);
+      if (Wire.endTransmission() == 0) {
+        Wire.requestFrom((int)addr, 1);
+        if (Wire.available()) {
+          byte chipId = Wire.read();
+          Serial.printf("      Chip ID doc duoc: 0x%02X\n", chipId);
+          if (chipId == 0x60) {
+            Serial.println("      => Day chinh xac la chip BME280.");
+          } else if (chipId == 0x58 || chipId == 0x56 || chipId == 0x57) {
+            Serial.println("      => LUU Y: Day la chip BMP280 (chi co Nhiet do/Ap suat, KHONG co Do am).");
+          } else {
+            Serial.printf("      => Chip ID 0x%02X khong khop 0x60 cua BME280.\n", chipId);
+          }
+        }
+      }
+    }
+  }
+  if (!foundAny) {
+    Serial.println("[!] KHONG PHAT HIEN THIET BI NAO o dia chi 0x76 hoac 0x77!");
+    Serial.println("    Vui long kiem tra 4 day noi cua cam bien BME280:");
+    Serial.println("    - VCC -> Chan 3V3 (ESP32-S3)");
+    Serial.println("    - GND -> Chan GND");
+    Serial.println("    - SCL -> Chan GPIO 9");
+    Serial.println("    - SDA -> Chan GPIO 8");
+  }
+  Serial.println("--------------------------------\n");
+}
+
 void readEnvSensors() {
+  // Nếu chưa tìm thấy cảm biến, tự động thử kết nối lại
+  if (!bmeFound) {
+    initBME();
+  }
+
   if (bmeFound) {
-    currentTemp = bme.readTemperature();
-    currentHum = bme.readHumidity();
-    currentPress = bme.readPressure() / 100.0F;
+    float t = bme.readTemperature();
+    float h = bme.readHumidity();
+    float p = bme.readPressure() / 100.0F;
+
+    // Kiểm tra tính hợp lệ của dữ liệu
+    if (!isnan(t) && !isnan(h) && !isnan(p) && t > -40.0 && t < 85.0 && p > 300.0) {
+      currentTemp = t;
+      currentHum = h;
+      currentPress = p;
+    } else {
+      Serial.println("[BME280] Du lieu loi hoac mat tiep xuc day, danh dau thu lai...");
+      bmeFound = false;
+    }
   }
 }
 
@@ -259,13 +332,23 @@ void updateOledDisplay(int tips) {
 
   // Nhiệt độ & Độ ẩm
   display.setCursor(5, 18);
-  display.printf("T:%.1fC", currentTemp);
-  display.setCursor(68, 18);
-  display.printf("H:%.1f%%", currentHum);
+  if (bmeFound) {
+    display.printf("T:%.1fC", currentTemp);
+    display.setCursor(68, 18);
+    display.printf("H:%.1f%%", currentHum);
+  } else {
+    display.print("T:--.-C");
+    display.setCursor(68, 18);
+    display.print("H:--.-%");
+  }
 
   // Áp suất
   display.setCursor(5, 30);
-  display.printf("P: %.1f hPa", currentPress);
+  if (bmeFound) {
+    display.printf("P: %.1f hPa", currentPress);
+  } else {
+    display.print("P: Mat BME280!");
+  }
 
   display.drawLine(0, 42, 128, 42, SH110X_WHITE);
 
