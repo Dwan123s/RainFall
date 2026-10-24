@@ -117,6 +117,13 @@ float currentPress = 0.0;
 unsigned long lastBmeReadTime = 0;
 bool bmeFound = false;
 
+// --- CẤU HÌNH HIỆU CHUẨN ĐỘ ẨM (HUMIDITY CALIBRATION) ---
+// Do cảm biến BME280 bị ẩm hoặc lệch dương, giá trị đo bị trôi kịch trần 100%.
+// Bạn có thể chỉnh HUMIDITY_OFFSET ở đây để khớp độ ẩm phòng thực tế (ví dụ: -25.0 để đưa về 75%).
+// Bạn cũng có thể bấm phím '+' hoặc '-' trực tiếp trong Serial Monitor để tăng/giảm bù trừ mà không cần nạp lại code!
+float HUMIDITY_OFFSET = -24.0;    // Bù trừ giảm 24% (đưa 100% về ~76% chuẩn thời tiết)
+float HUMIDITY_SCALE = 1.0;      // Hệ số tỷ lệ
+
 // Biến cho nút BOOT (Reset)
 bool lastButtonState = HIGH;
 unsigned long lastButtonChange = 0;
@@ -228,6 +235,20 @@ void loop() {
       diagnoseBME();
       initBME();
     }
+    if (c == '+' || c == '=') {
+      HUMIDITY_OFFSET += 1.0;
+      readEnvSensors();
+      updateOledDisplay(getTipCount());
+      Serial.printf("[CALIB] Tang bu tru: HUMIDITY_OFFSET = %.1f%% | Do am OLED: %.1f%%
+", HUMIDITY_OFFSET, currentHum);
+    }
+    if (c == '-' || c == '_') {
+      HUMIDITY_OFFSET -= 1.0;
+      readEnvSensors();
+      updateOledDisplay(getTipCount());
+      Serial.printf("[CALIB] Giam bu tru: HUMIDITY_OFFSET = %.1f%% | Do am OLED: %.1f%%
+", HUMIDITY_OFFSET, currentHum);
+    }
   }
 
   captureTelemetry();
@@ -248,8 +269,7 @@ bool initBME() {
                       Adafruit_BME280::SAMPLING_X1,  // Độ ẩm: BẬT oversampling x1
                       Adafruit_BME280::FILTER_X16,
                       Adafruit_BME280::STANDBY_MS_0_5);
-      Serial.printf("[BME280] Khoi tao va kich hoat do am thanh cong tai 0x%02X!
-", addrs[i]);
+      Serial.printf("[BME280] Khoi tao va kich hoat do am thanh cong tai 0x%02X!", addrs[i]);
       return true;
     }
   }
@@ -333,14 +353,19 @@ void readEnvSensors() {
 
   if (bmeFound) {
     float t = bme.readTemperature();
-    float h = bme.readHumidity();
+    float rawH = bme.readHumidity();
     float p = bme.readPressure() / 100.0F;
 
     // Kiểm tra tính hợp lệ của dữ liệu
-    if (!isnan(t) && !isnan(h) && !isnan(p) && t > -40.0 && t < 85.0 && p > 300.0) {
+    if (!isnan(t) && !isnan(rawH) && !isnan(p) && t > -40.0 && t < 85.0 && p > 300.0) {
       currentTemp = t;
-      currentHum = h;
       currentPress = p;
+
+      // Áp dụng công thức hiệu chuẩn độ ẩm thực tế
+      float calibH = (rawH * HUMIDITY_SCALE) + HUMIDITY_OFFSET;
+      if (calibH > 99.0) calibH = 99.0;
+      if (calibH < 15.0) calibH = 15.0;
+      currentHum = calibH;
     } else {
       Serial.println("[BME280] Du lieu loi hoac mat tiep xuc day, danh dau thu lai...");
       bmeFound = false;
