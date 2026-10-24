@@ -12,7 +12,8 @@ import {
   History,
   Settings,
   CloudLightning,
-  ChevronRight
+  ChevronRight,
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -32,30 +33,45 @@ const navItems: NavItem[] = [
   { name: 'Cài đặt hệ thống', href: '/settings', icon: Settings },
 ];
 
-export function Sidebar({ className }: { className?: string }) {
+interface SidebarProps {
+  className?: string;
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ className, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
 
-  return (
-    <aside
-      className={cn(
-        'w-64 border-r border-border bg-card/80 backdrop-blur-md flex flex-col justify-between shrink-0 select-none z-30 transition-all duration-300',
-        className
-      )}
-    >
+  const sidebarContent = (isMobile: boolean) => (
+    <div className="flex flex-col h-full justify-between">
       <div>
         {/* Brand Logo & Station Title */}
-        <div className="h-16 px-5 border-b border-border flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shadow-glow-cyan">
-            <CloudLightning className="w-5 h-5 animate-pulse" />
-          </div>
-          <div>
-            <div className="font-bold text-base tracking-wide bg-gradient-to-r from-cyan-600 to-sky-500 dark:from-cyan-400 dark:to-sky-200 bg-clip-text text-transparent">
-              RainSense
+        <div className="h-16 px-5 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 shadow-glow-cyan">
+              <CloudLightning className="w-5 h-5 animate-pulse" />
             </div>
-            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono tracking-wider uppercase">
-              IoT Weather Station
+            <div>
+              <div className="font-bold text-base tracking-wide bg-gradient-to-r from-cyan-600 to-sky-500 dark:from-cyan-400 dark:to-sky-200 bg-clip-text text-transparent">
+                RainSense
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono tracking-wider uppercase">
+                IoT Weather Station
+              </div>
             </div>
           </div>
+
+          {/* Close button on mobile */}
+          {isMobile && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              aria-label="Đóng menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Navigation Menu */}
@@ -68,6 +84,9 @@ export function Sidebar({ className }: { className?: string }) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => {
+                  if (isMobile) onClose?.();
+                }}
                 className={cn(
                   'flex items-center justify-between px-3.5 py-2.5 rounded-lg text-sm font-medium transition-all group',
                   isActive
@@ -100,9 +119,40 @@ export function Sidebar({ className }: { className?: string }) {
           </span>
         </div>
         <p className="text-[11px] text-slate-500 line-clamp-1">
-          Giao thức MQTT / HiveMQ Cloud TLS
+          Giao thức MQTT / EMQX Cloud TLS
         </p>
       </div>
-    </aside>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar (Cố định ở màn hình từ md trở lên) */}
+      <aside
+        className={cn(
+          'hidden md:flex w-64 border-r border-border bg-card/80 backdrop-blur-md flex-col justify-between shrink-0 select-none z-30 transition-all duration-300',
+          className
+        )}
+      >
+        {sidebarContent(false)}
+      </aside>
+
+      {/* Mobile Drawer (Trượt ra trên màn hình nhỏ < md) */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop overlay mờ nền đen */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+
+          {/* Drawer Sidebar */}
+          <aside className="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-card border-r border-border shadow-2xl z-50 flex flex-col justify-between animate-in slide-in-from-left duration-300">
+            {sidebarContent(true)}
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

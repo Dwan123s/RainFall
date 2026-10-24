@@ -4,9 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Radio,
-  Wifi,
   Droplets,
-  User
+  User,
+  Menu
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
@@ -14,10 +14,12 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
 export function Header({
   selectedStation = 'RS-ESP32S3-01',
-  onSelectStation
+  onSelectStation,
+  onToggleSidebar
 }: {
   selectedStation?: string;
   onSelectStation?: (id: string) => void;
+  onToggleSidebar?: () => void;
 }) {
   const queryClient = useQueryClient();
 
@@ -96,16 +98,29 @@ export function Header({
   });
 
   return (
-    <header className="h-16 px-6 border-b border-border bg-card/80 backdrop-blur-md flex items-center justify-between sticky top-0 z-20 transition-colors">
-      {/* Station Selector & Breadcrumb */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <label htmlFor="station-select" className="text-xs text-slate-500 dark:text-slate-400 font-medium">Trạm:</label>
+    <header className="h-16 px-3 sm:px-6 border-b border-border bg-card/80 backdrop-blur-md flex items-center justify-between sticky top-0 z-20 transition-colors">
+      {/* Left: Mobile Menu Button & Station Selector */}
+      <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+        {/* Mobile Hamburger Button */}
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="md:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+          aria-label="Mở menu điều hướng"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        {/* Station Select */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          <label htmlFor="station-select" className="hidden lg:inline text-xs text-slate-500 dark:text-slate-400 font-medium shrink-0">
+            Trạm:
+          </label>
           <select
             id="station-select"
             value={selectedStation}
             onChange={(e) => onSelectStation?.(e.target.value)}
-            className="bg-slate-100 dark:bg-slate-800/60 border border-slate-300 dark:border-border text-sm font-semibold rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-500 text-slate-800 dark:text-slate-200 transition-colors"
+            className="bg-slate-100 dark:bg-slate-800/60 border border-slate-300 dark:border-border text-xs sm:text-sm font-semibold rounded-lg px-2 sm:px-3 py-1.5 focus:outline-none focus:border-cyan-500 text-slate-800 dark:text-slate-200 transition-colors max-w-[130px] sm:max-w-[200px] md:max-w-xs truncate"
           >
             {devices && devices.length > 0 ? (
               devices.map((d: any) => (
@@ -114,55 +129,56 @@ export function Header({
                 </option>
               ))
             ) : (
-              <option value="RS-ESP32S3-01">RS-ESP32S3-01 (Mặc định)</option>
+              <option value="RS-ESP32S3-01">RS-ESP32S3-01</option>
             )}
           </select>
         </div>
 
         {/* Real-time WebSocket connection state */}
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 text-xs transition-colors">
+        <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 text-xs transition-colors shrink-0">
           <span
             className={`w-2 h-2 rounded-full ${
               socketConnected ? 'bg-emerald-500 animate-pulse-live' : 'bg-rose-500'
             }`}
           />
           <span className="text-[11px] font-mono text-slate-700 dark:text-slate-300">
-            {socketConnected ? 'Realtime Live' : 'Mất kết nối WS'}
+            {socketConnected ? 'Realtime Live' : 'Mất kết nối'}
           </span>
         </div>
       </div>
 
       {/* Right controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
         {/* Date and Time */}
-        <div className="hidden md:block text-xs font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/30 px-2.5 py-1 rounded border border-slate-200 dark:border-border transition-colors">
+        <div className="hidden lg:block text-xs font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/30 px-2.5 py-1 rounded border border-slate-200 dark:border-border transition-colors">
           {currentTime || 'Đang tải giờ...'}
         </div>
 
         {/* DEMO MODE / LIVE MODE Switcher Pill */}
-        <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-1 rounded-lg transition-colors">
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-0.5 sm:p-1 rounded-lg transition-colors">
           <button
             onClick={() => toggleDemoMutation.mutate(!isDemoMode)}
-            className={`px-2.5 py-1 rounded text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-2 sm:px-2.5 py-1 rounded text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 sm:gap-1.5 ${
               isDemoMode
                 ? 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 shadow-sm'
                 : 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 shadow-sm'
             }`}
             title="Nhấn để chuyển đổi giữa DEMO MODE và LIVE MODE"
           >
-            <Radio className="w-3 h-3 animate-pulse" />
-            <span>{isDemoMode ? 'DEMO MODE' : 'LIVE MODE'}</span>
+            <Radio className="w-3 h-3 animate-pulse shrink-0" />
+            <span className="hidden sm:inline">{isDemoMode ? 'DEMO MODE' : 'LIVE MODE'}</span>
+            <span className="sm:hidden">{isDemoMode ? 'DEMO' : 'LIVE'}</span>
           </button>
 
           {isDemoMode && (
             <button
               onClick={() => simulateTipMutation.mutate(1)}
               disabled={simulateTipMutation.isPending}
-              className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 rounded text-xs flex items-center gap-1 transition-colors"
-              title="Kích hoạt 1 xung lật gầu Hall A3144 (0.25mm)"
+              className="px-1.5 sm:px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 rounded text-[11px] sm:text-xs flex items-center gap-1 transition-colors"
+              title="Kích hoạt 1 xung lật gàu Hall A3144 (0.64mm)"
             >
-              <Droplets className="w-3 h-3 text-cyan-500 dark:text-cyan-400" />
-              <span className="hidden sm:inline font-medium">Thử nhịp mưa</span>
+              <Droplets className="w-3 h-3 text-cyan-500 dark:text-cyan-400 shrink-0" />
+              <span className="hidden md:inline font-medium">Thử mưa</span>
             </button>
           )}
         </div>
@@ -171,7 +187,7 @@ export function Header({
         <ThemeToggle variant="compact" />
 
         {/* User Icon */}
-        <div className="w-9 h-9 rounded-xl border border-border bg-slate-100 dark:bg-slate-800/40 flex items-center justify-center text-slate-700 dark:text-slate-300 font-medium text-xs transition-colors shadow-sm">
+        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl border border-border bg-slate-100 dark:bg-slate-800/40 flex items-center justify-center text-slate-700 dark:text-slate-300 font-medium text-xs transition-colors shadow-sm">
           <User className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
         </div>
       </div>
