@@ -85,12 +85,36 @@ export const api = {
     return `${API_BASE}/api/export?${q}`;
   },
 
-  // Chiikawa AI Assistant
-  chatWithAi: (message: string, history: Array<{ role: 'user' | 'assistant'; content: string }> = [], deviceId?: string) =>
-    request<{ reply: string; context: any }>('/api/ai/chat', {
-      method: 'POST',
-      body: JSON.stringify({ message, history, deviceId })
-    }),
+  // RainSense AI Assistant (with local Vercel fallback)
+  chatWithAi: async (
+    message: string,
+    history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+    deviceId?: string
+  ): Promise<{ reply: string; context: any }> => {
+    try {
+      return await request<{ reply: string; context: any }>('/api/ai/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message, history, deviceId })
+      });
+    } catch (primaryErr) {
+      try {
+        const fallbackRes = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, history, deviceId })
+        });
+        if (fallbackRes.ok) {
+          const json = await fallbackRes.json();
+          if (json.success && json.data) {
+            return json.data;
+          }
+        }
+      } catch (fallbackErr) {
+        // Ignore fallback error
+      }
+      throw primaryErr;
+    }
+  },
   getAiContext: (deviceId?: string) =>
     request<any>(`/api/ai/context${deviceId ? `?deviceId=${deviceId}` : ''}`)
 };

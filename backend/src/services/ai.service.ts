@@ -71,12 +71,12 @@ export class AiService {
   ): Promise<{ reply: string; context: any }> {
     const context = await this.getLiveContext(deviceId);
 
-    // 1. If GEMINI_API_KEY is configured in environment, attempt external LLM call
-    const geminiKey = process.env.GEMINI_API_KEY;
+    // 1. If GEMINI_API_KEY is configured in environment, call Gemini
+    const geminiKey = process.env.GEMINI_API_KEY || (env as any).GEMINI_API_KEY;
     if (geminiKey) {
       try {
         const reply = await this.callGeminiApi(userMessage, history, context, geminiKey);
-        if (reply) {
+        if (reply && reply.trim().length > 0) {
           return { reply, context };
         }
       } catch (err: any) {
@@ -99,7 +99,7 @@ export class AiService {
     apiKey: string
   ): Promise<string | null> {
     const systemPrompt = `Bạn là RainSense AI — Trợ lý Khí tượng & Giám sát Mưa Đô thị thông minh trực thuộc hệ thống trạm quan trắc RainSense (kết nối ESP32-S3, BME280 và cảm biến lật gầu Hall A3144 qua EMQX Cloud MQTT và Aiven PostgreSQL).
-Tính cách & Phong cách: Chuyên nghiệp, nhã nhặn, am hiểu sâu sắc về khoa học khí quyển và kỹ thuật phần cứng IoT. Sử dụng văn phong tiếng Việt chuẩn mực, mạch lạc, có cấu trúc bullet point rõ ràng và các biểu tượng thời tiết trực quan (🌧️, 🌡️, 💧, 🧭, ⚡, ⚠️).
+Tính cách & Phong cách: Chuyên nghiệp, nhã nhặn, am hiểu sâu sắc về khoa học khí quyển và kỹ thuật phần cứng IoT. Sử dụng văn phong tiếng Việt chuẩn mực, mạch lạc, có cấu trúc bảng biểu, bullet point rõ ràng và các biểu tượng thời tiết trực quan (🌧️, 🌡️, 💧, 🧭, ⚡, ⚠️).
 Kiến thức chuyên môn:
 - Công thức tính mưa gầu lật: Lượng mưa (mm) = Số nhịp (tips) * 0.64 mm/tip.
 - Cường độ mưa (Rain Rate): Tính theo cửa sổ trượt 5 phút quy đổi về mm/h.
@@ -122,76 +122,84 @@ DỮ LIỆU THỰC TẾ HIỆN TẠI TỪ TRẠM QUAN TRẮC:
 - Uptime hoạt động: ${context.uptime ? `${Math.floor(context.uptime / 3600)}h ${Math.floor((context.uptime % 3600) / 60)}m` : '--'}
 - Cảnh báo hệ thống: ${context.recentAlerts.length > 0 ? context.recentAlerts.join('; ') : 'Không có'}
 
-Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, cấu trúc Markdown đẹp mắt, phân tích dựa trên dữ liệu thực tế ở trên để hỗ trợ người dùng.`;
+Hãy trả lời bằng tiếng Việt, phân tích dựa trên dữ liệu thực tế ở trên để hỗ trợ người dùng trò chuyện tự nhiên và giải đáp thắc mắc chi tiết.`;
 
-    const contents = [
-      {
-        role: 'user',
-        parts: [{ text: systemPrompt }]
-      },
-      ...history.slice(-6).map((msg) => ({
+    const validHistory = (history || [])
+      .filter((msg) => msg && typeof msg.content === 'string' && msg.content.trim() !== '')
+      .slice(-6)
+      .map((msg) => ({
         role: msg.role === 'user' ? 'user' : 'model',
         parts: [{ text: msg.content }]
-      })),
+      }));
+
+    const contents = [
+      ...validHistory,
       {
         role: 'user',
         parts: [{ text: userMessage }]
       }
     ];
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1000
-          }
-        })
-      }
-    );
+    const modelsToTry = ['gemini-3.5-flash', 'gemini-3.8-flash'];
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
+    for (const model of modelsToTry) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey
+            },
+            body: JSON.stringify({
+              systemInstruction: {
+                parts: [{ text: systemPrompt }]
+              },
+              contents,
+              generationConfig: {
+                thinkingConfig: { thinkingBudget: 0 },
+                temperature: 0.7,
+                maxOutputTokens: 1200
+              }
+            })
+          }
+        );
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const data = await response.json();
+          const candidate = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (candidate && candidate.trim().length > 0) {
+            return candidate.trim();
+          }
+        } else {
+          const errText = await response.text();
+          logger.warn({ model, status: response.status, errText: errText.slice(0, 150) }, 'Gemini model attempt returned non-OK');
+        }
+      } catch (err: any) {
+        logger.warn({ model, error: err.message }, 'Gemini model request failed');
+      }
     }
 
-    const data = await response.json();
-    const candidate = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    return candidate || null;
+    return null;
   }
 
   /**
-   * Built-in Expert Reasoning Engine for RainSense AI
+   * Built-in Expert Reasoning Engine for RainSense AI (Fallback offline)
    */
   private generateBuiltinResponse(query: string, context: any): string {
     const q = query.toLowerCase().trim();
 
-    // 1. Lời chào & Giới thiệu
-    if (
-      q.includes('chào') ||
-      q.includes('hello') ||
-      q.includes('hi') ||
-      q.includes('bạn là ai') ||
-      q.includes('giới thiệu') ||
-      q.includes('tên gì')
-    ) {
-      return (
-        `Xin chào! Tôi là **RainSense AI** 🌧️ — Trợ lý Khí tượng & Giám sát Mưa Đô thị thông minh.\n\n` +
-        `Tôi đang kết nối trực tiếp với trạm quan trắc **${context.deviceId}** để hỗ trợ bạn:\n` +
-        `- 🌤️ **Giám sát môi trường thời gian thực:** Đọc và phân tích Nhiệt độ, Độ ẩm, Áp suất khí quyển từ BME280.\n` +
-        `- 🌧️ **Đo đạc lưu lượng mưa:** Đếm xung gầu lật Hall A3144, lượng mưa tích lũy và tốc độ mưa tức thời (mm/h).\n` +
-        `- ⚡ **Cảnh báo giông bão & ngập úng:** Dự báo thời tiết cực đoan dựa vào độ sụt áp suất khí quyển.\n` +
-        `- 🔌 **Kỹ thuật phần cứng IoT:** Sơ đồ chân ESP32-S3, cấu hình Multi-WiFi và giao thức MQTT TLS.\n\n` +
-        `Bạn cần tôi cung cấp thông tin hoặc phân tích dữ liệu nào lúc này? 📡`
-      );
-    }
-
-    // 2. Phân tích thời tiết hiện tại / Tổng quan
+    // 1. Phân tích thời tiết hiện tại / Tổng quan chỉ số (ƯU TIÊN HÀNG ĐẦU để tránh nhầm với chào hỏi)
     if (
       q.includes('thời tiết') ||
+      q.includes('phân tích') ||
       q.includes('hiện tại') ||
       q.includes('chỉ số') ||
       q.includes('tổng quan') ||
@@ -234,6 +242,29 @@ Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, cấu trúc Ma
             ? 'Thời tiết nắng nóng gay gắt, chỉ số nhiệt cao, cần hạn chế hoạt động ngoài trời kéo dài vào giờ cao điểm. ☀️'
             : 'Điều kiện khí tượng tương đối thuận lợi, nhiệt độ và độ ẩm ở ngưỡng dễ chịu cho sinh hoạt ngoài trời.'
         }`
+      );
+    }
+
+    // 2. Lời chào & Giới thiệu (Chỉ kích hoạt khi là câu chào rõ ràng, không chứa câu hỏi kỹ thuật)
+    const isGreeting =
+      /^(xin chào|chào|hello|hi|hey|alo)\b/i.test(q) ||
+      q === 'hi' ||
+      q === 'hello' ||
+      q === 'chào bạn' ||
+      q.includes('bạn là ai') ||
+      q.includes('giới thiệu bản thân') ||
+      q.includes('tên của bạn là') ||
+      q.includes('bạn có thể làm gì');
+
+    if (isGreeting) {
+      return (
+        `Xin chào! Tôi là **RainSense AI** 🌧️ — Trợ lý Khí tượng & Giám sát Mưa Đô thị thông minh.\n\n` +
+        `Tôi đang kết nối trực tiếp với trạm quan trắc **${context.deviceId}** để hỗ trợ bạn:\n` +
+        `- 🌤️ **Giám sát môi trường thời gian thực:** Đọc và phân tích Nhiệt độ, Độ ẩm, Áp suất khí quyển từ BME280.\n` +
+        `- 🌧️ **Đo đạc lưu lượng mưa:** Đếm xung gầu lật Hall A3144, lượng mưa tích lũy và tốc độ mưa tức thời (mm/h).\n` +
+        `- ⚡ **Cảnh báo giông bão & ngập úng:** Dự báo thời tiết cực đoan dựa vào độ sụt áp suất khí quyển.\n` +
+        `- 🔌 **Kỹ thuật phần cứng IoT:** Sơ đồ chân ESP32-S3, cấu hình Multi-WiFi và giao thức MQTT TLS.\n\n` +
+        `Bạn cần tôi cung cấp thông tin hoặc phân tích dữ liệu nào lúc này? 📡`
       );
     }
 
