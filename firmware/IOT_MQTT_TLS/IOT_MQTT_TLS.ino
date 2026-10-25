@@ -156,7 +156,7 @@ bool bmeFound = false;
 // - Khi độ ẩm phòng bình thường (~76%): đo ra ~76%
 // - Khi trời nồm ẩm, mưa (~90% - 95%): giá trị tự động TĂNG MƯỢT MÀ lên 90% - 95%, KHÔNG BỊ CHẶN Ở 76%!
 // - Khi trời nắng ráo (~55% - 65%): giá trị tự động GIẢM MƯỢT MÀ xuống 55% - 65%!
-float HUMIDITY_SCALE_FACTOR = 0.58; // Hệ số co giãn toàn dải (chỉnh bằng phím '+' hoặc '-' trong Serial Monitor)
+float HUMIDITY_SCALE_FACTOR = 0.52; // Tỷ lệ co giãn đưa về chuẩn 65% - 70% thực tế tại Điện Bàn, Quảng Nam // Hệ số co giãn toàn dải (chỉnh bằng phím '+' hoặc '-' trong Serial Monitor)
 
 // Biến cho nút BOOT (Reset)
 bool lastButtonState = HIGH;
@@ -273,15 +273,13 @@ void loop() {
       HUMIDITY_SCALE_FACTOR += 0.01;
       readEnvSensors();
       updateOledDisplay(getTipCount());
-      Serial.printf("[CALIB] Tang ty le: HUMIDITY_SCALE_FACTOR = %.2f | Do am OLED: %.1f%%
-", HUMIDITY_SCALE_FACTOR, currentHum);
+      Serial.printf("[CALIB] Tang ty le: HUMIDITY_SCALE_FACTOR = %.2f | Do am OLED: %.1f%%", HUMIDITY_SCALE_FACTOR, currentHum);
     }
     if (c == '-' || c == '_') {
       HUMIDITY_SCALE_FACTOR -= 0.01;
       readEnvSensors();
       updateOledDisplay(getTipCount());
-      Serial.printf("[CALIB] Giam ty le: HUMIDITY_SCALE_FACTOR = %.2f | Do am OLED: %.1f%%
-", HUMIDITY_SCALE_FACTOR, currentHum);
+      Serial.printf("[CALIB] Giam ty le: HUMIDITY_SCALE_FACTOR = %.2f | Do am OLED: %.1f%%", HUMIDITY_SCALE_FACTOR, currentHum);
     }
   }
 
@@ -404,6 +402,7 @@ void readEnvSensors() {
       if (dynamicH > 99.0) dynamicH = 99.0;
       if (dynamicH < 15.0) dynamicH = 15.0;
       currentHum = dynamicH;
+      Serial.printf("[BME280] Nhiet do: %.1fC | Khi ap: %.1f hPa | Do am thuc te: %.1f%% (Goc chua cat: %.1f%%)\n", currentTemp, currentPress, currentHum, unclampedH);
     } else {
       Serial.println("[BME280] Du lieu loi hoac mat tiep xuc day, danh dau thu lai...");
       bmeFound = false;
