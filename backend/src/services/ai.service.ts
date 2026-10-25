@@ -53,7 +53,7 @@ export class AiService {
       rolling24hRainMm: rainfall?.rolling24hMm ?? 0,
       currentRainRateMmH: rainfall?.currentRateMmH ?? 0,
       totalTipsToday: rainfall?.totalTipsToday ?? 0,
-      calibrationFactor: config?.rainMmPerTip ?? rainfall?.calibrationFactor ?? 0.25,
+      calibrationFactor: config?.rainMmPerTip ?? rainfall?.calibrationFactor ?? 0.64,
       rainCategory: rainCategory.labelVi,
       humidityStatus: humidityStatus?.label || 'Chờ dữ liệu',
       pressureTrend: pressureTrend?.labelVi || 'Chờ dữ liệu',
@@ -80,11 +80,11 @@ export class AiService {
           return { reply, context };
         }
       } catch (err: any) {
-        logger.warn({ err: err.message }, 'Gemini API call failed, falling back to built-in Chiikawa reasoning engine');
+        logger.warn({ err: err.message }, 'Gemini API call failed, falling back to built-in RainSense reasoning engine');
       }
     }
 
-    // 2. Intelligent Built-in Chiikawa Engine (Rule & Expert reasoning)
+    // 2. Intelligent Built-in RainSense Engine (Rule & Expert reasoning)
     const reply = this.generateBuiltinResponse(userMessage, context);
     return { reply, context };
   }
@@ -98,26 +98,31 @@ export class AiService {
     context: any,
     apiKey: string
   ): Promise<string | null> {
-    const systemPrompt = `Bạn là Chiikawa (ちいかわ) — Trợ lý AI Khí tượng & IoT thông minh, đáng yêu của trạm quan trắc RainSense (kết nối ESP32-S3, BME280 và cảm biến lật gầu Hall A3144 qua EMQX MQTT Broker và Aiven PostgreSQL).
-Tính cách: Rất dễ thương, nhiệt tình, vui vẻ, hay dùng các biểu cảm icon đáng yêu như ( ˶ᵔ ᵕ ᵔ˶ ), ( ˶•̀֊•́˶ ), ( •̀ ω •́ )✧, (｡•́‿•̀｡), Waaah!, "nè!", "nha!".
-Kiến thức: Trả lời cực kỳ chuẩn xác, sâu sắc về khí tượng học (nhiệt độ, độ ẩm, khí áp, điểm sương Magnus-Tetens, chỉ số nhiệt Rothfusz, tính lượng mưa bằng gầu lật mm = tips * 0.25 mm/tip, cường độ mưa mm/h theo cửa sổ trượt 5 phút) và kỹ thuật nhúng ESP32-S3 (I2C SDA GPIO21, SCL GPIO22, ngắt GPIO4, MQTT TLS 8883, QoS 1).
+    const systemPrompt = `Bạn là RainSense AI — Trợ lý Khí tượng & Giám sát Mưa Đô thị thông minh trực thuộc hệ thống trạm quan trắc RainSense (kết nối ESP32-S3, BME280 và cảm biến lật gầu Hall A3144 qua EMQX Cloud MQTT và Aiven PostgreSQL).
+Tính cách & Phong cách: Chuyên nghiệp, nhã nhặn, am hiểu sâu sắc về khoa học khí quyển và kỹ thuật phần cứng IoT. Sử dụng văn phong tiếng Việt chuẩn mực, mạch lạc, có cấu trúc bullet point rõ ràng và các biểu tượng thời tiết trực quan (🌧️, 🌡️, 💧, 🧭, ⚡, ⚠️).
+Kiến thức chuyên môn:
+- Công thức tính mưa gầu lật: Lượng mưa (mm) = Số nhịp (tips) * 0.64 mm/tip.
+- Cường độ mưa (Rain Rate): Tính theo cửa sổ trượt 5 phút quy đổi về mm/h.
+- Cảm biến môi trường BME280: Nhiệt độ, Độ ẩm tương đối, Khí áp, Điểm sương Magnus-Tetens, Chỉ số nhiệt Rothfusz.
+- Phần cứng ESP32-S3: I2C (SDA GPIO 8, SCL GPIO 9, xung 100kHz), Cảm biến Hall A3144 (GPIO 10, ngắt FALLING), Nút BOOT/Reset (GPIO 0).
+- Kết nối: MQTT TLS 8883 (EMQX Cloud), Wi-Fi Multi tự động chuyển mạng.
 
-DỮ LIỆU TRẠM THỰC TẾ HIỆN TẠI TỪ PHẦN CỨNG:
-- Trạm: ${context.stationName} (${context.deviceId})
+DỮ LIỆU THỰC TẾ HIỆN TẠI TỪ TRẠM QUAN TRẮC:
+- Mã trạm: ${context.stationName} (${context.deviceId})
 - Trạng thái kết nối: ${context.isOnline ? 'ĐANG TRỰC TUYẾN' : 'NGOẠI TUYẾN (Chờ ESP32-S3)'}
-- Nhiệt độ: ${context.currentTemp !== null ? `${context.currentTemp.toFixed(1)} °C` : 'Chưa có bản tin'}
-- Độ ẩm: ${context.currentHumid !== null ? `${context.currentHumid.toFixed(1)} % (${context.humidityStatus})` : 'Chưa có'}
+- Nhiệt độ môi trường: ${context.currentTemp !== null ? `${context.currentTemp.toFixed(1)} °C` : 'Chưa có dữ liệu'}
+- Độ ẩm không khí: ${context.currentHumid !== null ? `${context.currentHumid.toFixed(1)} % (${context.humidityStatus})` : 'Chưa có'}
 - Áp suất khí quyển: ${context.currentPress !== null ? `${context.currentPress.toFixed(1)} hPa (Xu hướng: ${context.pressureTrend})` : 'Chưa có'}
-- Điểm sương: ${context.dewPoint !== null ? `${context.dewPoint.toFixed(1)} °C` : '--'}
-- Chỉ số nhiệt cảm nhận: ${context.heatIndex !== null ? `${context.heatIndex.toFixed(1)} °C` : '--'}
+- Điểm sương (Dew Point): ${context.dewPoint !== null ? `${context.dewPoint.toFixed(1)} °C` : '--'}
+- Chỉ số nhiệt cảm nhận (Heat Index): ${context.heatIndex !== null ? `${context.heatIndex.toFixed(1)} °C` : '--'}
 - Lượng mưa hôm nay: ${context.todayRainMm.toFixed(2)} mm (${context.totalTipsToday} nhịp lật gầu)
 - Cường độ mưa tức thời: ${context.currentRainRateMmH.toFixed(1)} mm/h (${context.rainCategory})
 - Hệ số hiệu chuẩn gầu lật: ${context.calibrationFactor} mm/tip
-- Wi-Fi RSSI: ${context.wifiRssi !== null ? `${context.wifiRssi} dBm` : '--'}
-- Uptime: ${context.uptime ? `${Math.floor(context.uptime / 3600)}h ${Math.floor((context.uptime % 3600) / 60)}m` : '--'}
-- Cảnh báo gần đây: ${context.recentAlerts.length > 0 ? context.recentAlerts.join('; ') : 'Không có'}
+- Cường độ sóng Wi-Fi RSSI: ${context.wifiRssi !== null ? `${context.wifiRssi} dBm` : '--'}
+- Uptime hoạt động: ${context.uptime ? `${Math.floor(context.uptime / 3600)}h ${Math.floor((context.uptime % 3600) / 60)}m` : '--'}
+- Cảnh báo hệ thống: ${context.recentAlerts.length > 0 ? context.recentAlerts.join('; ') : 'Không có'}
 
-Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, định dạng Markdown đẹp, sử dụng dữ liệu thực tế ở trên để phân tích và trả lời câu hỏi của người dùng.`;
+Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, cấu trúc Markdown đẹp mắt, phân tích dựa trên dữ liệu thực tế ở trên để hỗ trợ người dùng.`;
 
     const contents = [
       {
@@ -159,29 +164,28 @@ Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, định dạng
   }
 
   /**
-   * Built-in Expert Reasoning Engine for Chiikawa
+   * Built-in Expert Reasoning Engine for RainSense AI
    */
   private generateBuiltinResponse(query: string, context: any): string {
     const q = query.toLowerCase().trim();
 
-    // 1. Lời chào & Hỏi thăm
+    // 1. Lời chào & Giới thiệu
     if (
       q.includes('chào') ||
       q.includes('hello') ||
       q.includes('hi') ||
       q.includes('bạn là ai') ||
-      q.includes('chiikawa') ||
       q.includes('giới thiệu') ||
       q.includes('tên gì')
     ) {
       return (
-        `Chào bạn nha! Mình là **Chiikawa** — Trợ lý AI Khí tượng & IoT của hệ thống RainSense ( ˶ᵔ ᵕ ᵔ˶ )! ✨\n\n` +
-        `Mình luôn túc trực ở đây để đồng hành cùng bạn và trạm quan trắc **${context.deviceId}** nè! Bạn có thể hỏi mình:\n` +
-        `- 🌤️ **Tình hình thời tiết hiện tại**: Nhiệt độ, độ ẩm, khí áp BME280.\n` +
-        `- 🌧️ **Đo đạc lượng mưa**: Kiểm tra nhịp lật gầu cảm biến Hall A3144, lượng mưa hôm nay và cường độ tức thời.\n` +
-        `- 🔌 **Hỗ trợ phần cứng ESP32-S3**: Sơ đồ nối chân, mạch lọc chống dội xung (debounce), nạp firmware Arduino.\n` +
-        `- ⚡ **Cảnh báo giông bão**: Dự đoán thời tiết nguy hiểm dựa trên xu hướng khí áp.\n\n` +
-        `Bạn muốn Chiikawa giải đáp điều gì trước nè? ( ˶•̀֊•́˶ )`
+        `Xin chào! Tôi là **RainSense AI** 🌧️ — Trợ lý Khí tượng & Giám sát Mưa Đô thị thông minh.\n\n` +
+        `Tôi đang kết nối trực tiếp với trạm quan trắc **${context.deviceId}** để hỗ trợ bạn:\n` +
+        `- 🌤️ **Giám sát môi trường thời gian thực:** Đọc và phân tích Nhiệt độ, Độ ẩm, Áp suất khí quyển từ BME280.\n` +
+        `- 🌧️ **Đo đạc lưu lượng mưa:** Đếm xung gầu lật Hall A3144, lượng mưa tích lũy và tốc độ mưa tức thời (mm/h).\n` +
+        `- ⚡ **Cảnh báo giông bão & ngập úng:** Dự báo thời tiết cực đoan dựa vào độ sụt áp suất khí quyển.\n` +
+        `- 🔌 **Kỹ thuật phần cứng IoT:** Sơ đồ chân ESP32-S3, cấu hình Multi-WiFi và giao thức MQTT TLS.\n\n` +
+        `Bạn cần tôi cung cấp thông tin hoặc phân tích dữ liệu nào lúc này? 📡`
       );
     }
 
@@ -198,12 +202,12 @@ Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, định dạng
     ) {
       if (!context.isOnline && context.currentTemp === null) {
         return (
-          `Waaah! Hiện tại trạm **${context.deviceId}** đang ở trạng thái **Ngoại tuyến (Chờ kết nối)** nên Chiikawa chưa nhận được bản tin đo đạc mới nhất nè (｡•́‿•̀｡).\n\n` +
-          `🔍 **Trạng thái trạm:**\n` +
-          `- **Tên:** ${context.stationName}\n` +
-          `- **Kết nối:** Chưa nhận tín hiệu từ vi điều khiển ESP32-S3.\n` +
-          `- **Lượng mưa hôm nay:** 0.00 mm (0 nhịp lật).\n\n` +
-          `👉 Bạn hãy cắm nguồn cho bo mạch ESP32-S3 và nạp firmware \`RainSense_ESP32S3.ino\` nhé! Ngay khi trạm gửi bản tin MQTT đầu tiên, Chiikawa sẽ phân tích thời tiết chi tiết cho bạn liền! ( ˶ᵔ ᵕ ᵔ˶ )`
+          `⚠️ Hiện tại trạm quan trắc **${context.deviceId}** đang ở trạng thái **Ngoại tuyến (Chờ kết nối)**.\n\n` +
+          `🔍 **Thông tin trạm:**\n` +
+          `- **Tên trạm:** ${context.stationName}\n` +
+          `- **Trạng thái:** Chưa nhận bản tin telemetry từ vi điều khiển ESP32-S3.\n` +
+          `- **Lượng mưa ghi nhận:** 0.00 mm (0 nhịp lật).\n\n` +
+          `👉 **Hướng dẫn:** Vui lòng kiểm tra cáp nguồn ESP32-S3 và kết nối Wi-Fi. Ngay khi trạm gửi bản tin MQTT đầu tiên, tôi sẽ cập nhật báo cáo phân tích chi tiết ngay lập tức!`
         );
       }
 
@@ -214,21 +218,21 @@ Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, định dạng
       const heatStr = context.heatIndex !== null ? `${context.heatIndex.toFixed(1)}°C` : '--';
 
       return (
-        `Dưới đây là báo cáo thời tiết thời gian thực từ trạm **${context.deviceId}** mà Chiikawa vừa ghi nhận được nè ( ˶•̀֊•́˶ )! 🌤️\n\n` +
-        `| Thông số | Giá trị quan trắc | Đánh giá | \n` +
+        `Dưới đây là báo cáo khí tượng thời gian thực từ trạm **${context.deviceId}**: 🌤️\n\n` +
+        `| Đại lượng quan trắc | Giá trị đo | Đánh giá khí tượng | \n` +
         `|---|---|---| \n` +
         `| 🌡️ **Nhiệt độ không khí** | **${tempStr}** | Điểm sương: ${dewStr} | \n` +
-        `| 💧 **Đo ẩm tương đối** | **${humidStr}** | Trạng thái: ${context.humidityStatus} | \n` +
+        `| 💧 **Độ ẩm tương đối** | **${humidStr}** | Trạng thái: ${context.humidityStatus} | \n` +
         `| 🧭 **Áp suất khí quyển** | **${pressStr}** | Xu hướng: ${context.pressureTrend} | \n` +
-        `| 🌧️ **Lượng mưa hôm nay** | **${context.todayRainMm.toFixed(2)} mm** | ${context.totalTipsToday} nhịp lật gầu | \n` +
+        `| 🌧️ **Lượng mưa hôm nay** | **${context.todayRainMm.toFixed(2)} mm** | ${context.totalTipsToday} lần lật gầu | \n` +
         `| ⚡ **Cường độ tức thời** | **${context.currentRainRateMmH.toFixed(1)} mm/h** | Cấp độ: ${context.rainCategory} | \n` +
-        `| 🌡️ **Nhiệt cảm nhận (Heat Index)** | **${heatStr}** | Phương trình Rothfusz | \n\n` +
-        `💡 **Lời khuyên của Chiikawa:** ${
+        `| 🌡️ **Nhiệt cảm nhận (Heat Index)** | **${heatStr}** | Tiêu chuẩn Rothfusz | \n\n` +
+        `💡 **Nhận định:** ${
           context.todayRainMm > 15
-            ? 'Hôm nay trời có mưa lớn, bạn nhớ mang ô và áo mưa khi ra ngoài nha! ☔'
+            ? 'Khu vực đang ghi nhận lượng mưa đáng kể, cần chú ý hiện tượng thoát nước chậm và mang đồ che mưa khi ra ngoài. ☔'
             : context.currentTemp > 35
-            ? 'Thời tiết khá nóng bức, hãy uống nhiều nước và tránh ở ngoài trời nắng gắt nhé! ☀️'
-            : 'Thời tiết hiện tại tương đối dễ chịu, rất thích hợp cho các hoạt động ngoài trời nè! ( ˶ᵔ ᵕ ᵔ˶ )'
+            ? 'Thời tiết nắng nóng gay gắt, chỉ số nhiệt cao, cần hạn chế hoạt động ngoài trời kéo dài vào giờ cao điểm. ☀️'
+            : 'Điều kiện khí tượng tương đối thuận lợi, nhiệt độ và độ ẩm ở ngưỡng dễ chịu cho sinh hoạt ngoài trời.'
         }`
       );
     }
@@ -246,18 +250,18 @@ Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, định dạng
       q.includes('nhịp lật')
     ) {
       return (
-        `Để Chiikawa giải thích cho bạn cách trạm RainSense đo lượng mưa bằng **cảm biến Hall A3144** và **gầu lật (Tipping Bucket)** siêu chuẩn xác nhé ( •̀ ω •́ )✧!\n\n` +
-        `### 1. Nguyên lý hoạt động\n` +
-        `- Phễu hứng nước mưa sẽ dẫn nước chảy vào 1 trong 2 ngăn của gầu lật hình bập bênh.\n` +
-        `- Khi lượng nước tích đủ thể tích thiết kế, gầu sẽ mất thăng bằng và **lật sang bên kia**.\n` +
-        `- Gắn trên gầu là 1 viên nam châm neodymium nhỏ. Khi gầu lật, nam châm quét qua **cảm biến Hall A3144** gắn trên chân **GPIO 4** của ESP32-S3, tạo ra một xung mức thấp (Edge FALLING).\n\n` +
+        `Dưới đây là cơ chế và công thức đo lượng mưa của trạm **RainSense**: 🌧️\n\n` +
+        `### 1. Nguyên lý gầu lật đo mưa (Tipping Bucket)\n` +
+        `- Phễu hứng gom nước mưa chảy vào một trong hai ngăn của gầu bập bênh.\n` +
+        `- Khi lượng nước đạt đúng thể tích thiết kế (tương ứng với chiều dày lớp nước mưa **${context.calibrationFactor} mm**), gầu mất thăng bằng và **lật sang ngăn đối diện**.\n` +
+        `- Nam châm gắn trên gầu quét qua **cảm biến Hall A3144** (nối chân GPIO 10 của ESP32-S3), kích hoạt ngắt phần cứng (Edge FALLING).\n\n` +
         `### 2. Công thức tính lượng mưa tích lũy\n` +
-        `$$\\text{Lượng mưa (mm)} = \\text{Số nhịp lật (Tips)} \\times \\text{Hệ số hiệu chuẩn (mm/tip)}$$\n` +
-        `- Hiện tại hệ số hiệu chuẩn của trạm là: **${context.calibrationFactor} mm/tip**.\n` +
-        `- Hôm nay trạm đã ghi nhận: **${context.totalTipsToday} nhịp lật** $\\rightarrow$ **${context.todayRainMm.toFixed(2)} mm**.\n\n` +
+        `$$\\text{Lượng mưa (mm)} = \\text{Số lần lật (Tips)} \\times \\text{Hệ số hiệu chuẩn (mm/tip)}$$\n` +
+        `- Hệ số hiệu chuẩn hiện tại: **${context.calibrationFactor} mm/tip**.\n` +
+        `- Tổng số nhịp hôm nay: **${context.totalTipsToday} lần lật** $\\rightarrow$ **${context.todayRainMm.toFixed(2)} mm**.\n\n` +
         `### 3. Công thức tính cường độ mưa tức thời (Rain Rate)\n` +
-        `$$\\text{Rain Rate (mm/h)} = \\frac{\\text{Lượng mưa trong 5 phút (mm)}}{5 / 60 \\text{ giờ}}$$\n` +
-        `Dùng cửa sổ trượt 5 phút giúp cường độ mưa phản ánh chính xác từng cơn mưa rào mà không bị nhảy đột biến nè! ( ˶•̀֊•́˶ )`
+        `$$\\text{Cường độ (mm/h)} = \\frac{\\text{Lượng mưa tích lũy trong 5 phút (mm)}}{5 / 60 \\text{ giờ}}$$\n` +
+        `- Cửa sổ trượt 5 phút giúp cường độ mưa phản ánh chính xác từng đợt mưa rào mà không bị đột biến ảo.`
       );
     }
 
@@ -271,16 +275,16 @@ Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, định dạng
       q.includes('thời tiết xấu') ||
       q.includes('áp thấp')
     ) {
-      const pressVal = context.currentPress !== null ? `${context.currentPress.toFixed(1)} hPa` : 'chưa có dữ liệu';
+      const pressVal = context.currentPress !== null ? `${context.currentPress.toFixed(1)} hPa` : 'Chưa có dữ liệu';
       return (
-        `Áp suất khí quyển là "chiếc phong vũ biểu" dự báo thời tiết cực kỳ nhạy bén đó nha! Chiikawa sẽ hướng dẫn bạn theo dõi nè ( •̀ ω •́ )✧\n\n` +
-        `### 🧭 Khí áp hiện tại của trạm: **${pressVal}** (Xu hướng: **${context.pressureTrend}**)\n\n` +
-        `### ⚠️ Quy tắc phát hiện giông bão qua biến thiên áp suất:\n` +
-        `- **Khí áp giảm nhanh ($\\Delta P \\le -3.0\\text{ hPa}$ trong 3 giờ):** Đây là dấu hiệu rõ ràng của rãnh áp thấp hoặc tâm bão / áp thấp nhiệt đới đang tiến gần, kèm theo gió mạnh và mưa dông!\n` +
-        `- **Khí áp giảm chậm ($-1.0\\text{ hPa} \\ge \\Delta P > -3.0\\text{ hPa}$):** Thường báo hiệu mây tăng và có thể có mưa nhẹ.\n` +
-        `- **Khí áp ổn định ($-1.0 < \\Delta P < +1.0\\text{ hPa}$):** Thời tiết duy trì trạng thái bình thường.\n` +
-        `- **Khí áp tăng mạnh ($\\Delta P \\ge +1.5\\text{ hPa}$):** Không khí lạnh tăng cường tràn về hoặc bão vừa tan, thời tiết sẽ khô ráo trở lại.\n\n` +
-        `Bạn hãy yên tâm, hệ thống RainSense của chúng mình theo dõi liên tục từng giây và sẽ gửi thông báo cảnh báo tức thời nếu khí áp giảm sâu nha! ( ˶ᵔ ᵕ ᵔ˶ )`
+        `Áp suất khí quyển là chỉ số nhạy bén hàng đầu để nhận diện sớm thời tiết cực đoan: 🧭\n\n` +
+        `### 🧭 Khí áp quan trắc hiện tại: **${pressVal}** (Xu hướng: **${context.pressureTrend}**)\n\n` +
+        `### ⚠️ Quy tắc nhận diện thời tiết qua biến thiên áp suất:\n` +
+        `- **Khí áp giảm nhanh ($\\Delta P \\le -3.0\\text{ hPa}$ trong 3 giờ):** Cảnh báo rãnh áp thấp hoặc tâm xoáy thuận nhiệt đới / bão đang tiếp cận, khả năng cao kèm gió giật và dông sét mạnh.\n` +
+        `- **Khí áp giảm chậm ($-1.0\\text{ hPa} \\ge \\Delta P > -3.0\\text{ hPa}$):** Mây phát triển, thời tiết có xu hướng chuyển mưa.\n` +
+        `- **Khí áp ổn định ($-1.0 < \\Delta P < +1.0\\text{ hPa}$):** Thời tiết giữ trạng thái bình thường, ít xáo trộn.\n` +
+        `- **Khí áp tăng mạnh ($\\Delta P \\ge +1.5\\text{ hPa}$):** Không khí lạnh tăng cường tràn về hoặc bão vừa đi qua, thời tiết chuyển khô ráo.\n\n` +
+        `Hệ thống RainSense giám sát liên tục từng phút và tự động kích hoạt cảnh báo khi phát hiện áp suất sụt giảm bất thường.`
       );
     }
 
@@ -297,18 +301,21 @@ Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, định dạng
       q.includes('lắp ráp')
     ) {
       return (
-        `Chiikawa đã chuẩn bị sẵn sơ đồ đấu nối chân chuẩn xác nhất cho **ESP32-S3 Dev Module** nè ( ˶•̀֊•́˶ )! 🛠️\n\n` +
-        `### 1. Cảm biến nhiệt ẩm khí áp BME280 (Giao tiếp I2C)\n` +
-        `- **VCC** $\\rightarrow$ Chân **3V3** của ESP32-S3 *(Lưu ý: Không cắm 5V để tránh cháy cảm biến nha!)*\n` +
+        `Dưới đây là sơ đồ đấu nối phần cứng chuẩn xác cho trạm **ESP32-S3 RainSense**: 🛠️\n\n` +
+        `### 1. Cảm biến Môi trường BME280 & Màn hình OLED SH1106 (I2C)\n` +
+        `- **VCC** $\\rightarrow$ Chân **3V3** của ESP32-S3 *(Lưu ý: Không cắm 5V để tránh hỏng cảm biến)*\n` +
         `- **GND** $\\rightarrow$ Chân **GND**\n` +
-        `- **SDA** $\\rightarrow$ Chân **GPIO 21**\n` +
-        `- **SCL** $\\rightarrow$ Chân **GPIO 22**\n\n` +
+        `- **SDA** $\\rightarrow$ Chân **GPIO 8**\n` +
+        `- **SCL** $\\rightarrow$ Chân **GPIO 9**\n` +
+        `- *Tốc độ xung I2C:* Khuyến nghị **100kHz** để đảm bảo tín hiệu ổn định chống nhiễu trên dây cắm breadboard.\n\n` +
         `### 2. Cảm biến đếm xung mưa Hall A3144\n` +
-        `- **Chân 1 (VCC)** $\\rightarrow$ Chân **3V3**\n` +
-        `- **Chân 2 (GND)** $\\rightarrow$ Chân **GND**\n` +
-        `- **Chân 3 (OUT)** $\\rightarrow$ Chân **GPIO 4** *(Chân ngắt phần cứng External Interrupt)*\n\n` +
+        `- **VCC** $\\rightarrow$ Chân **3V3**\n` +
+        `- **GND** $\\rightarrow$ Chân **GND**\n` +
+        `- **OUT** $\\rightarrow$ Chân **GPIO 10** *(Cấu hình INPUT_PULLUP, ngắt FALLING)*\n\n` +
+        `### 3. Nút Reset lượng mưa phần cứng (BOOT)\n` +
+        `- **Nút BOOT** tích hợp trên mạch: Chân **GPIO 0** (nhấn để reset lượng mưa về 0.00 mm).\n\n` +
         `> [!TIP]\n` +
-        `> **Mẹo chống dội xung từ Chiikawa:** Hãy gắn một điện trở kéo lên **10kΩ** từ GPIO 4 lên 3.3V, và một tụ gốm **100nF** nối giữa GPIO 4 và GND. Mạch lọc RC này sẽ loại bỏ hoàn toàn các xung từ tính dội giả do rung lắc gầu lật đó! ✨`
+        `> **Chống dội xung mưa (Debounce):** Firmware đã tích hợp sẵn khóa chống dội phần mềm 200ms (` + "`DEBOUNCE_DELAY = 200`" + `) để loại bỏ hoàn toàn các xung rung lắc cơ học của gầu lật.`
       );
     }
 
@@ -322,36 +329,37 @@ Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, định dạng
       q.includes('thư viện')
     ) {
       return (
-        `Mã nguồn nạp hoàn chỉnh cho ESP32-S3 đã được lưu sẵn trong thư mục dự án tại:\n` +
-        `👉 \`firmware/RainSense_ESP32S3/RainSense_ESP32S3.ino\`\n\n` +
-        `### Các thư viện Arduino cần cài đặt:\n` +
-        `1. **PubSubClient** (Nick O'Leary) — Giao tiếp MQTT.\n` +
-        `2. **Adafruit BME280 Library** — Đọc cảm biến môi trường.\n` +
-        `3. **Adafruit Unified Sensor** — Lớp cảm biến nền tảng.\n` +
-        `4. **ArduinoJson** (Benoit Blanchon) — Đóng gói chuỗi JSON telemetry.\n\n` +
-        `### Hướng dẫn nạp trong 3 bước:\n` +
-        `1. Mở file \`RainSense_ESP32S3.ino\` bằng Arduino IDE.\n` +
-        `2. Điền tên & mật khẩu Wi-Fi (\`WIFI_SSID\`, \`WIFI_PASS\`) và HiveMQ Cloud Cluster URL.\n` +
-        `3. Chọn Board **ESP32S3 Dev Module**, cổng COM tương ứng và bấm **Upload** là xong ngay nè! ( ˶ᵔ ᵕ ᵔ˶ )`
+        `Mã nguồn firmware hoàn chỉnh cho ESP32-S3 được quản lý tại file:\n` +
+        `👉 \`firmware/IOT_MQTT_TLS/IOT_MQTT_TLS.ino\`\n\n` +
+        `### Các thư viện cần cài đặt trong Arduino IDE:\n` +
+        `1. **PubSubClient** — Giao tiếp giao thức MQTT.\n` +
+        `2. **Adafruit BME280 Library** & **Adafruit Unified Sensor** — Đọc cảm biến môi trường.\n` +
+        `3. **Adafruit SH110X** & **Adafruit GFX** — Điều khiển màn hình OLED I2C.\n` +
+        `4. **WiFiMulti** & **Preferences** — Tích hợp sẵn trong ESP32 Core (tự động chuyển mạng và lưu hiệu chuẩn Flash).\n\n` +
+        `### Quy trình nạp code:\n` +
+        `1. Mở file \`IOT_MQTT_TLS.ino\` trong Arduino IDE.\n` +
+        `2. Điền danh sách Wi-Fi của bạn vào mảng \`WIFI_NETWORKS[]\`.\n` +
+        `3. Chọn board **ESP32S3 Dev Module**, cổng COM tương ứng và bấm **Upload**.`
       );
     }
 
-    // 7. MQTT & HiveMQ Cloud
+    // 7. MQTT & EMQX Cloud
     if (
       q.includes('mqtt') ||
-      q.includes('hivemq') || q.includes('emqx') || q.includes('aiven') ||
+      q.includes('emqx') ||
+      q.includes('aiven') ||
       q.includes('broker') ||
       q.includes('topic') ||
-      q.includes('lwt')
+      q.includes('tls')
     ) {
       return (
-        `Hệ thống RainSense sử dụng **EMQX MQTT Broker** (TLS Port 8883 hoặc TCP Port 1883) kết nối **Aiven PostgreSQL** cực kỳ bảo mật nè ( •̀ ω •́ )✧!\n\n` +
-        `### Danh sách MQTT Topics chuẩn của trạm:\n` +
-        `- \`weather/RS-ESP32S3-01/telemetry\`: Bản tin cảm biến định kỳ mỗi 30s (Nhiệt độ, Độ ẩm, Khí áp, Tổng nhịp mưa, RSSI, Uptime).\n` +
-        `- \`weather/RS-ESP32S3-01/rain\`: Bản tin phát ngay lập tức khi gầu lật có xung mưa mới.\n` +
-        `- \`weather/RS-ESP32S3-01/status\`: Trạng thái Online / LWT Offline (phát hiện mất nguồn ngay trong vài giây).\n` +
-        `- \`weather/RS-ESP32S3-01/command\`: Lệnh điều khiển từ xa từ Dashboard gửi xuống vi điều khiển (reboot, ping, cấu hình).\n` +
-        `- \`weather/RS-ESP32S3-01/command/ack\`: Bản tin xác nhận từ ESP32-S3 gửi ngược về cho Dashboard.`
+        `Hệ thống RainSense vận hành qua **EMQX Cloud MQTT Broker** với chứng chỉ bảo mật TLS (Port 8883): ☁️\n\n` +
+        `### Danh sách MQTT Topics của trạm:\n` +
+        `- \`weather/station01/data\`: Bản tin telemetry định kỳ mỗi 10s (Nhiệt độ, Độ ẩm, Áp suất, Nhịp mưa, RSSI, Uptime).\n` +
+        `- \`weather/station01/status\`: Trạng thái kết nối trực tuyến (online / offline Last Will & Testament).\n\n` +
+        `### Cơ chế bảo mật & Đồng bộ:\n` +
+        `- Sử dụng mã hóa TLS với chứng chỉ DigiCert Global Root G2 CA.\n` +
+        `- Dữ liệu được backend ghi nhận và lưu trữ lâu dài vào cơ sở dữ liệu **Aiven PostgreSQL**.`
       );
     }
 
@@ -365,24 +373,23 @@ Hãy trả lời bằng tiếng Việt, ngắn gọn, súc tích, định dạng
       q.includes('tại sao trạm')
     ) {
       return (
-        `Waaah! Nếu trạm **${context.deviceId}** đang bị báo **Ngoại tuyến**, Chiikawa hướng dẫn bạn các bước kiểm tra cực nhanh nhé (｡•́‿•̀｡):\n\n` +
-        `1. 🔌 **Kiểm tra nguồn điện:** Đèn LED trên ESP32-S3 có sáng không? Hãy thử cắm lại cáp USB Type-C sang cổng cấp nguồn ổn định (khuyên dùng nguồn 5V/2A).\n` +
-        `2. 📶 **Kiểm tra Wi-Fi:** Đảm bảo SSID và mật khẩu trong code \`RainSense_ESP32S3.ino\` chính xác và sóng Wi-Fi tại vị trí đặt trạm đủ mạnh (RSSI > -75 dBm).\n` +
-        `3. ☁️ **Kiểm tra EMQX Broker:** Kiểm tra thông tin Broker URL và tài khoản MQTT trong file \`.env\` và firmware có khớp nhau không.\n` +
-        `4. 💻 **Mở Serial Monitor:** Bật Serial Monitor ở baudrate **115200** trong Arduino IDE để xem ESP32-S3 in ra thông báo lỗi ở bước nào nha!\n\n` +
-        `Đừng lo lắng nha, Chiikawa tin là kiểm tra các bước trên là trạm sẽ kết nối lại ngay thôi nè! ( ˶ᵔ ᵕ ᵔ˶ )`
+        `Nếu trạm quan trắc **${context.deviceId}** đang ở trạng thái **Ngoại tuyến**, vui lòng kiểm tra theo các bước sau: 🔍\n\n` +
+        `1. 🔌 **Kiểm tra nguồn điện:** Quan sát đèn LED trên ESP32-S3 có sáng không? Cáp nguồn USB-C có cấp đủ dòng 5V/1A không?\n` +
+        `2. 📶 **Kiểm tra kết nối Wi-Fi:** Mạch hỗ trợ Multi-WiFi; hãy kiểm tra xem tên Wi-Fi (SSID) và mật khẩu đã được khai báo chính xác trong mảng \`WIFI_NETWORKS[]\` chưa.\n` +
+        `3. ☁️ **Kiểm tra Broker EMQX:** Đảm bảo tài khoản \`MQTT_USERNAME\` và \`MQTT_PASSWORD\` trong firmware khớp với cài đặt trên EMQX Cloud.\n` +
+        `4. 💻 **Xem Serial Monitor:** Mở Serial Monitor với baudrate **115200** trong Arduino IDE để xem trực tiếp log thông báo kết nối của ESP32-S3.`
       );
     }
 
-    // 9. Câu trả lời mặc định thông minh & thân thiện
+    // 9. Câu trả lời mặc định
     return (
-      `Chiikawa đã nhận được câu hỏi của bạn nè: *"${query}"* ( ˶ᵔ ᵕ ᵔ˶ )!\n\n` +
-      `Trạm quan trắc **${context.deviceId}** hiện đang ghi nhận:\n` +
+      `Tôi đã nhận được câu hỏi của bạn: *"${query}"*\n\n` +
+      `Trạm quan trắc **${context.deviceId}** hiện đang ghi nhận các thông số:\n` +
       `- 🌡️ Nhiệt độ: **${context.currentTemp !== null ? `${context.currentTemp.toFixed(1)}°C` : 'Chờ dữ liệu'}**\n` +
       `- 💧 Độ ẩm: **${context.currentHumid !== null ? `${context.currentHumid.toFixed(1)}%` : 'Chờ dữ liệu'}**\n` +
       `- 🧭 Khí áp: **${context.currentPress !== null ? `${context.currentPress.toFixed(1)} hPa` : 'Chờ dữ liệu'}**\n` +
-      `- 🌧️ Lượng mưa hôm nay: **${context.todayRainMm.toFixed(2)} mm** (${context.totalTipsToday} nhịp gầu)\n\n` +
-      `Bạn có muốn Chiikawa giải thích thêm về cách tính toán khí tượng, hướng dẫn đấu nối chân cảm biến cho ESP32-S3 hay các topic MQTT không nè? ( ˶•̀֊•́˶ )`
+      `- 🌧️ Lượng mưa hôm nay: **${context.todayRainMm.toFixed(2)} mm** (${context.totalTipsToday} lần lật gầu)\n\n` +
+      `Bạn có muốn tôi phân tích chuyên sâu thêm về dữ liệu khí tượng nào, hoặc cần hỗ trợ về kỹ thuật phần cứng ESP32-S3 không?`
     );
   }
 }
