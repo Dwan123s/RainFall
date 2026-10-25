@@ -2,6 +2,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SH110X.h>
 #include <Adafruit_BME280.h>
+#include <Preferences.h>
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <WiFiClientSecure.h>
@@ -99,6 +100,7 @@ bool publishTelemetry(PubSubClient &mqtt, const TelemetrySnapshot &sample,
 #define HALL_PIN 10
 #define BOOT_BUTTON_PIN 0
 
+Preferences prefs;
 Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 // --- LỚP MỞ RỘNG BME280: MỞ KHÓA THANH GHI ĐỘ ẨM THÔ KHÔNG BỊ GIỚI HẠN CẮT NGỌN ---
 class CalibratedBME280 : public Adafruit_BME280 {
@@ -156,7 +158,7 @@ bool bmeFound = false;
 // - Khi độ ẩm phòng bình thường (~76%): đo ra ~76%
 // - Khi trời nồm ẩm, mưa (~90% - 95%): giá trị tự động TĂNG MƯỢT MÀ lên 90% - 95%, KHÔNG BỊ CHẶN Ở 76%!
 // - Khi trời nắng ráo (~55% - 65%): giá trị tự động GIẢM MƯỢT MÀ xuống 55% - 65%!
-float HUMIDITY_SCALE_FACTOR = 0.52; // Tỷ lệ co giãn đưa về chuẩn 65% - 70% thực tế tại Điện Bàn, Quảng Nam // Hệ số co giãn toàn dải (chỉnh bằng phím '+' hoặc '-' trong Serial Monitor)
+float HUMIDITY_SCALE_FACTOR = 0.71; // Tỷ lệ mặc định đưa về 67% (Được lưu vĩnh viễn vào Flash khi chỉnh bằng + / -)
 
 // Biến cho nút BOOT (Reset)
 bool lastButtonState = HIGH;
@@ -188,6 +190,10 @@ void diagnoseBME();
 void setup() {
   Serial.begin(115200);
   Serial.setTxTimeoutMs(0);
+
+  // Đọc hệ số hiệu chuẩn đã lưu trong bộ nhớ Flash vĩnh viễn (NVS)
+  prefs.begin("weather_calib", false);
+  HUMIDITY_SCALE_FACTOR = prefs.getFloat("h_scale", 0.71);
 
   unsigned long startWait = millis();
   while (!Serial && (millis() - startWait < 2000)) {
@@ -271,15 +277,17 @@ void loop() {
     }
     if (c == '+' || c == '=') {
       HUMIDITY_SCALE_FACTOR += 0.01;
+      prefs.putFloat("h_scale", HUMIDITY_SCALE_FACTOR); // LƯU VĨNH VIỄN VÀO FLASH (TẮT BẬT LẠI KHÔNG BỊ MẤT)
       readEnvSensors();
       updateOledDisplay(getTipCount());
-      Serial.printf("[CALIB] Tang ty le: HUMIDITY_SCALE_FACTOR = %.2f | Do am OLED: %.1f%%", HUMIDITY_SCALE_FACTOR, currentHum);
+      Serial.printf("[CALIB] Tang ty le (DA LUU VAO FLASH): HUMIDITY_SCALE_FACTOR = %.2f | Do am OLED: %.1f%%\n", HUMIDITY_SCALE_FACTOR, currentHum);
     }
     if (c == '-' || c == '_') {
       HUMIDITY_SCALE_FACTOR -= 0.01;
+      prefs.putFloat("h_scale", HUMIDITY_SCALE_FACTOR); // LƯU VĨNH VIỄN VÀO FLASH (TẮT BẬT LẠI KHÔNG BỊ MẤT)
       readEnvSensors();
       updateOledDisplay(getTipCount());
-      Serial.printf("[CALIB] Giam ty le: HUMIDITY_SCALE_FACTOR = %.2f | Do am OLED: %.1f%%", HUMIDITY_SCALE_FACTOR, currentHum);
+      Serial.printf("[CALIB] Giam ty le (DA LUU VAO FLASH): HUMIDITY_SCALE_FACTOR = %.2f | Do am OLED: %.1f%%\n", HUMIDITY_SCALE_FACTOR, currentHum);
     }
   }
 
