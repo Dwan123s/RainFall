@@ -100,7 +100,40 @@ bool publishTelemetry(PubSubClient &mqtt, const TelemetrySnapshot &sample,
 #define BOOT_BUTTON_PIN 0
 
 Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-Adafruit_BME280 bme;
+// --- LỚP MỞ RỘNG BME280: MỞ KHÓA THANH GHI ĐỘ ẨM THÔ KHÔNG BỊ GIỚI HẠN CẮT NGỌN ---
+class CalibratedBME280 : public Adafruit_BME280 {
+public:
+  float readUnclampedHumidity() {
+    readTemperature(); // Cập nhật biến t_fine chuẩn xác theo công thức bù nhiệt của Bosch
+
+    int32_t adc_H = read16(BME280_REGISTER_HUMIDDATA);
+    if (adc_H == 0x8000) return NAN;
+
+    int32_t v_x1_u32r;
+    v_x1_u32r = (t_fine - ((int32_t)76800));
+
+    v_x1_u32r = (((((adc_H << 14) - (((int32_t)_bme280_calib.dig_H4) << 20) -
+                    (((int32_t)_bme280_calib.dig_H5) * v_x1_u32r)) +
+                   ((int32_t)16384)) >> 15) *
+                 (((((((v_x1_u32r * ((int32_t)_bme280_calib.dig_H6)) >> 10) *
+                      (((v_x1_u32r * ((int32_t)_bme280_calib.dig_H3)) >> 11) +
+                       ((int32_t)32768))) >> 10) +
+                    ((int32_t)2097152)) *
+                       ((int32_t)_bme280_calib.dig_H2) +
+                   8192) >> 14));
+
+    v_x1_u32r = (v_x1_u32r - (((((v_x1_u32r >> 15) * (v_x1_u32r >> 15)) >> 7) *
+                               ((int32_t)_bme280_calib.dig_H1)) >> 4));
+
+    if (v_x1_u32r < 0) v_x1_u32r = 0;
+    // BỎ QUA lệnh cắt ngọn 100% của thư viện gốc:
+    // Thư viện gốc có: if (v_x1_u32r > 419430400) v_x1_u32r = 419430400; và if (h > 100.0) h = 100.0;
+    // Bằng cách đọc trực tiếp giá trị thực (có thể là 130% do lệch ẩm), ta thu được toàn bộ dải biến thiên liên tục!
+    return (float)(v_x1_u32r >> 12) / 1024.0;
+  }
+};
+
+CalibratedBME280 bme;
 
 // --- BIẾN ĐO MƯA ---
 const float RAINFALL_PER_TIP = 0.64;          // 0.64 mm nước / lần lật
@@ -117,12 +150,13 @@ float currentPress = 0.0;
 unsigned long lastBmeReadTime = 0;
 bool bmeFound = false;
 
-// --- CẤU HÌNH HIỆU CHUẨN ĐỘ ẨM (HUMIDITY CALIBRATION) ---
-// Do cảm biến BME280 bị ẩm hoặc lệch dương, giá trị đo bị trôi kịch trần 100%.
-// Bạn có thể chỉnh HUMIDITY_OFFSET ở đây để khớp độ ẩm phòng thực tế (ví dụ: -25.0 để đưa về 75%).
-// Bạn cũng có thể bấm phím '+' hoặc '-' trực tiếp trong Serial Monitor để tăng/giảm bù trừ mà không cần nạp lại code!
-float HUMIDITY_OFFSET = -24.0;    // Bù trừ giảm 24% (đưa 100% về ~76% chuẩn thời tiết)
-float HUMIDITY_SCALE = 1.0;      // Hệ số tỷ lệ
+// --- CẤU HÌNH CO GIÃN ĐỘ ẨM ĐỘNG (DYNAMIC HUMIDITY SCALING) ---
+// Không dùng phép trừ phẳng (vì trừ phẳng sẽ bị kẹt thành đường thẳng nằm ngang 76%).
+// Sử dụng hệ số tỷ lệ co giãn động: Độ ẩm thực tế = Độ ẩm thô * HUMIDITY_SCALE_FACTOR
+// - Khi độ ẩm phòng bình thường (~76%): đo ra ~76%
+// - Khi trời nồm ẩm, mưa (~90% - 95%): giá trị tự động TĂNG MƯỢT MÀ lên 90% - 95%, KHÔNG BỊ CHẶN Ở 76%!
+// - Khi trời nắng ráo (~55% - 65%): giá trị tự động GIẢM MƯỢT MÀ xuống 55% - 65%!
+float HUMIDITY_SCALE_FACTOR = 0.58; // Hệ số co giãn toàn dải (chỉnh bằng phím '+' hoặc '-' trong Serial Monitor)
 
 // Biến cho nút BOOT (Reset)
 bool lastButtonState = HIGH;
@@ -236,16 +270,18 @@ void loop() {
       initBME();
     }
     if (c == '+' || c == '=') {
-      HUMIDITY_OFFSET += 1.0;
+      HUMIDITY_SCALE_FACTOR += 0.01;
       readEnvSensors();
       updateOledDisplay(getTipCount());
-      Serial.printf("[CALIB] Tang bu tru: HUMIDITY_OFFSET = %.1f%% | Do am OLED: %.1f%%", HUMIDITY_OFFSET, currentHum);
+      Serial.printf("[CALIB] Tang ty le: HUMIDITY_SCALE_FACTOR = %.2f | Do am OLED: %.1f%%
+", HUMIDITY_SCALE_FACTOR, currentHum);
     }
     if (c == '-' || c == '_') {
-      HUMIDITY_OFFSET -= 1.0;
+      HUMIDITY_SCALE_FACTOR -= 0.01;
       readEnvSensors();
       updateOledDisplay(getTipCount());
-      Serial.printf("[CALIB] Giam bu tru: HUMIDITY_OFFSET = %.1f%% | Do am OLED: %.1f%%", HUMIDITY_OFFSET, currentHum);
+      Serial.printf("[CALIB] Giam ty le: HUMIDITY_SCALE_FACTOR = %.2f | Do am OLED: %.1f%%
+", HUMIDITY_SCALE_FACTOR, currentHum);
     }
   }
 
@@ -359,11 +395,15 @@ void readEnvSensors() {
       currentTemp = t;
       currentPress = p;
 
-      // Áp dụng công thức hiệu chuẩn độ ẩm thực tế
-      float calibH = (rawH * HUMIDITY_SCALE) + HUMIDITY_OFFSET;
-      if (calibH > 99.0) calibH = 99.0;
-      if (calibH < 15.0) calibH = 15.0;
-      currentHum = calibH;
+      // Đo độ ẩm thô mở khóa toàn dải (Unclamped)
+      float unclampedH = bme.readUnclampedHumidity();
+      if (isnan(unclampedH)) unclampedH = rawH;
+
+      // Áp dụng co giãn động toàn dải: giữ trọn vẹn độ nhạy biến thiên thực tế
+      float dynamicH = unclampedH * HUMIDITY_SCALE_FACTOR;
+      if (dynamicH > 99.0) dynamicH = 99.0;
+      if (dynamicH < 15.0) dynamicH = 15.0;
+      currentHum = dynamicH;
     } else {
       Serial.println("[BME280] Du lieu loi hoac mat tiep xuc day, danh dau thu lai...");
       bmeFound = false;
