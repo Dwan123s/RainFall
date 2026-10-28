@@ -1,13 +1,34 @@
 import { io, Socket } from 'socket.io-client';
 
-const rawSocketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
-const SOCKET_URL = rawSocketUrl.replace(/\/+$/, '');
+const DEFAULT_REMOTE_SOCKET = 'https://rainsense-backend.onrender.com';
+
+function getSocketUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+  if (envUrl && envUrl.trim() !== '') {
+    if (
+      typeof window === 'undefined' ||
+      !envUrl.includes('localhost') ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+    ) {
+      return envUrl.replace(/\/+$/, '');
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return DEFAULT_REMOTE_SOCKET;
+    }
+  }
+
+  return 'http://localhost:5000';
+}
 
 let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io(SOCKET_URL, {
+    socket = io(getSocketUrl(), {
       autoConnect: true,
       reconnection: true,
       reconnectionAttempts: Infinity,

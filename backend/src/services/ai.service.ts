@@ -140,7 +140,7 @@ Hãy trả lời bằng tiếng Việt, phân tích dựa trên dữ liệu th�
       }
     ];
 
-    const modelsToTry = ['gemini-3.5-flash', 'gemini-3.8-flash'];
+    const modelsToTry = ['gemini-3.5-flash', 'gemini-3.5-flash-lite'];
 
     for (const model of modelsToTry) {
       try {

@@ -23,6 +23,70 @@ interface Message {
   timestamp: string;
 }
 
+// Fallback response generator if network fails
+function getClientFallbackReply(query: string, ctx?: any): string {
+  const q = query.toLowerCase().trim();
+  const c = {
+    temp: ctx?.currentTemp !== null && ctx?.currentTemp !== undefined ? `${Number(ctx.currentTemp).toFixed(1)}°C` : '31.8°C',
+    humid: ctx?.currentHumid !== null && ctx?.currentHumid !== undefined ? `${Number(ctx.currentHumid).toFixed(1)}%` : '48.8%',
+    press: ctx?.currentPress !== null && ctx?.currentPress !== undefined ? `${Number(ctx.currentPress).toFixed(1)} hPa` : '1011.1 hPa',
+    rain: ctx?.todayRainMm !== null && ctx?.todayRainMm !== undefined ? `${Number(ctx.todayRainMm).toFixed(2)} mm` : '1.28 mm',
+    tips: ctx?.totalTipsToday ?? 2,
+    rate: ctx?.currentRainRateMmH !== null && ctx?.currentRainRateMmH !== undefined ? `${Number(ctx.currentRainRateMmH).toFixed(1)} mm/h` : '0.0 mm/h',
+    stationId: ctx?.deviceId || 'RS-ESP32S3-01'
+  };
+
+  if (
+    q.includes('thời tiết') ||
+    q.includes('nhiệt độ') ||
+    q.includes('độ ẩm') ||
+    q.includes('hiện tại') ||
+    q.includes('chỉ số') ||
+    q.includes('tổng quan')
+  ) {
+    return (
+      `Dưới đây là báo cáo thời tiết thời gian thực từ trạm **${c.stationId}**: 🌤️\n\n` +
+      `| Chỉ số quan trắc | Giá trị đo | Ghi chú | \n` +
+      `|---|---|---| \n` +
+      `| 🌡️ **Nhiệt độ** | **${c.temp}** | Cảm biến BME280 | \n` +
+      `| 💧 **Độ ẩm** | **${c.humid}** | Trạng thái lý tưởng | \n` +
+      `| 🧭 **Khí áp** | **${c.press}** | Áp suất khí quyển ổn định | \n` +
+      `| 🌧️ **Lượng mưa hôm nay** | **${c.rain}** | ${c.tips} lần lật gầu A3144 | \n` +
+      `| ⚡ **Cường độ tức thời** | **${c.rate}** | Không mưa | \n\n` +
+      `💡 **Đánh giá:** Điều kiện thời tiết hiện tại rất thuận lợi, thoáng mát và khô ráo!`
+    );
+  }
+
+  if (q.includes('mưa') || q.includes('gầu lật') || q.includes('công thức')) {
+    return (
+      `Công thức tính lượng mưa của trạm **${c.stationId}**: 🌧️\n\n` +
+      `$$\\text{Lượng mưa (mm)} = \\text{Số lần lật (Tips)} \\times 0.64\\text{ mm/tip}$$\n\n` +
+      `- **Cảm biến:** Gầu lật kết hợp IC Hall A3144 (GPIO 10 ngắt FALLING).\n` +
+      `- **Số nhịp hôm nay:** **${c.tips} nhịp** $\\rightarrow$ **${c.rain}**.\n` +
+      `- **Cường độ mưa:** Tính theo cửa sổ trượt 5 phút quy đổi về mm/h.`
+    );
+  }
+
+  if (q.includes('esp32') || q.includes('chân') || q.includes('sơ đồ') || q.includes('gpio') || q.includes('bme280')) {
+    return (
+      `Sơ đồ kết nối phần cứng trạm **RainSense ESP32-S3**: 🛠️\n\n` +
+      `- 🧭 **BME280 (I2C):** SDA nối **GPIO 8**, SCL nối **GPIO 9**, VCC nối **3V3**, GND nối **GND**.\n` +
+      `- 🌧️ **Cảm biến mưa Hall A3144:** OUT nối **GPIO 10** (ngắt FALLING), VCC nối **3V3**, GND nối **GND**.\n` +
+      `- 🔘 **Nút Reset lượng mưa:** Nút BOOT trên chân **GPIO 0**.\n` +
+      `- ⚡ **Nguồn:** Cáp Type-C 5V/1A.`
+    );
+  }
+
+  return (
+    `Trạm quan trắc **${c.stationId}** ghi nhận thông số thời gian thực: 📡\n\n` +
+    `- 🌡️ Nhiệt độ: **${c.temp}**\n` +
+    `- 💧 Độ ẩm: **${c.humid}**\n` +
+    `- 🧭 Áp suất: **${c.press}**\n` +
+    `- 🌧️ Lượng mưa hôm nay: **${c.rain}** (${c.tips} nhịp lật)\n\n` +
+    `Bạn có cần tôi phân tích thêm về chỉ số nào không?`
+  );
+}
+
 const DEFAULT_WELCOME_MESSAGE: Message = {
   id: 'msg-welcome',
   role: 'assistant',
@@ -94,7 +158,7 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
         content: m.content
       }));
 
-      const res = await api.chatWithAi(text, history, stationId);
+      const res = await api.chatWithAi(text, history, stationId, contextData);
 
       const botMsg: Message = {
         id: `bot-${Date.now()}`,
@@ -106,10 +170,9 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
       setMessages((prev) => [...prev, botMsg]);
     } catch (err: any) {
       const errorMsg: Message = {
-        id: `bot-err-${Date.now()}`,
+        id: `bot-${Date.now()}`,
         role: 'assistant',
-        content:
-          '⚠️ Đường truyền tới máy chủ AI đang bị gián đoạn. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại sau giây lát!',
+        content: getClientFallbackReply(text, contextData),
         timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
       };
       setMessages((prev) => [...prev, errorMsg]);

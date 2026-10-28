@@ -1,8 +1,31 @@
-const rawBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-const API_BASE = rawBase.replace(/\/+$/, '');
+const DEFAULT_REMOTE_BACKEND = 'https://rainsense-backend.onrender.com';
+
+export function getApiBase(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && envUrl.trim() !== '') {
+    // If running in browser on localhost or server-side, respect envUrl
+    if (
+      typeof window === 'undefined' ||
+      !envUrl.includes('localhost') ||
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1'
+    ) {
+      return envUrl.replace(/\/+$/, '');
+    }
+  }
+
+  // When running in client browser on a non-localhost host (e.g. Vercel)
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return DEFAULT_REMOTE_BACKEND;
+    }
+  }
+
+  return 'http://localhost:5000';
+}
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE}${endpoint}`;
+  const url = `${getApiBase()}${endpoint}`;
   const res = await fetch(url, {
     ...options,
     headers: {
@@ -82,39 +105,60 @@ export const api = {
     if (from) q += `&from=${encodeURIComponent(from)}`;
     if (to) q += `&to=${encodeURIComponent(to)}`;
     if (types && types.length) q += `&types=${types.join(',')}`;
-    return `${API_BASE}/api/export?${q}`;
+    return `${getApiBase()}/api/export?${q}`;
   },
 
-  // RainSense AI Assistant (with local Vercel fallback)
+  // RainSense AI Assistant (with multi-tier fallback)
   chatWithAi: async (
     message: string,
     history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
-    deviceId?: string
+    deviceId: string = 'RS-ESP32S3-01',
+    context?: any
   ): Promise<{ reply: string; context: any }> => {
+    // 1. Try Next.js local Vercel serverless route first for low latency
+    try {
+      const localRes = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, history, deviceId, context })
+      });
+      if (localRes.ok) {
+        const json = await localRes.json();
+        if (json.success && json.data?.reply) {
+          return json.data;
+        }
+      }
+    } catch (localErr) {
+      // Local route failed, proceed to remote backend
+    }
+
+    // 2. Try Render backend directly (/api/ai/chat)
     try {
       return await request<{ reply: string; context: any }>('/api/ai/chat', {
         method: 'POST',
         body: JSON.stringify({ message, history, deviceId })
       });
-    } catch (primaryErr) {
-      try {
-        const fallbackRes = await fetch('/api/ai/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, history, deviceId })
-        });
-        if (fallbackRes.ok) {
-          const json = await fallbackRes.json();
-          if (json.success && json.data) {
-            return json.data;
-          }
-        }
-      } catch (fallbackErr) {
-        // Ignore fallback error
-      }
-      throw primaryErr;
+    } catch (backendErr) {
+      // Re-try with local fallback if not already tried
+      throw backendErr;
     }
   },
-  getAiContext: (deviceId?: string) =>
-    request<any>(`/api/ai/context${deviceId ? `?deviceId=${deviceId}` : ''}`)
+
+  getAiContext: async (deviceId: string = 'RS-ESP32S3-01'): Promise<any> => {
+    // 1. Try local Next.js route first
+    try {
+      const res = await fetch(`/api/ai/context?deviceId=${encodeURIComponent(deviceId)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          return json.data;
+        }
+      }
+    } catch (e) {
+      // Fall through to backend
+    }
+
+    // 2. Try Render backend
+    return await request<any>(`/api/ai/context?deviceId=${encodeURIComponent(deviceId)}`);
+  }
 };
