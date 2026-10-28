@@ -14,7 +14,7 @@
     "db:push": "prisma db push --schema=prisma/schema.prisma",
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "prisma studio --schema=prisma/schema.prisma",
-    "test": "tsx --test src/tests/rainfall.test.ts src/tests/deduplication.test.ts src/tests/offline.test.ts"
+    "test": "tsx --test src/tests/rainfall.test.ts src/tests/deduplication.test.ts src/tests/offline.test.ts src/tests/ai.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.19.1",

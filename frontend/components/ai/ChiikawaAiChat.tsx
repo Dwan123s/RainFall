@@ -15,31 +15,18 @@ import {
 } from 'lucide-react';
 import { RainSenseIcon } from './RainSenseIcon';
 import { api } from '@/lib/api';
+import {
+  generateRainSenseReply,
+  normalizeStationContext,
+  cleanLatexArtifacts,
+  ChatTurn
+} from '@/lib/rainsense-ai';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
-}
-
-// Helper to remove any stray LaTeX tags and format mathematical text
-function cleanLatexArtifacts(text: string): string {
-  if (!text) return '';
-  return text
-    .replace(/\\text\{([^}]+)\}/g, '$1')
-    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1) / ($2)')
-    .replace(/\\times/g, '×')
-    .replace(/\\rightarrow/g, '→')
-    .replace(/\\le/g, '≤')
-    .replace(/\\ge/g, '≥')
-    .replace(/\\Delta/g, 'Δ')
-    .replace(/\\approx/g, '≈')
-    .replace(/\$\$/g, '')
-    .replace(/\$/g, '')
-    .replace(/^###\s*(.*)$/gm, '**$1**')
-    .replace(/^##\s*(.*)$/gm, '**$1**')
-    .replace(/^#\s*(.*)$/gm, '**$1**');
 }
 
 // Formatted message component that renders tables, bold text, code blocks cleanly
@@ -161,187 +148,29 @@ function FormattedMessage({ content }: { content: string }) {
 }
 
 // Fallback response generator if network fails
-function getClientFallbackReply(query: string, ctx?: any): string {
-  const q = query.toLowerCase().trim();
-  const c = {
-    temp: ctx?.currentTemp !== null && ctx?.currentTemp !== undefined ? `${Number(ctx.currentTemp).toFixed(1)}°C` : '31.8°C',
-    humid: ctx?.currentHumid !== null && ctx?.currentHumid !== undefined ? `${Number(ctx.currentHumid).toFixed(1)}%` : '48.8%',
-    press: ctx?.currentPress !== null && ctx?.currentPress !== undefined ? `${Number(ctx.currentPress).toFixed(1)} hPa` : '1011.1 hPa',
-    dew: ctx?.dewPoint !== null && ctx?.dewPoint !== undefined ? `${Number(ctx.dewPoint).toFixed(1)}°C` : '19.6°C',
-    heat: ctx?.heatIndex !== null && ctx?.heatIndex !== undefined ? `${Number(ctx.heatIndex).toFixed(1)}°C` : '33.7°C',
-    rain: ctx?.todayRainMm !== null && ctx?.todayRainMm !== undefined ? `${Number(ctx.todayRainMm).toFixed(2)} mm` : '1.28 mm',
-    tips: ctx?.totalTipsToday ?? 2,
-    rate: ctx?.currentRainRateMmH !== null && ctx?.currentRainRateMmH !== undefined ? `${Number(ctx.currentRainRateMmH).toFixed(1)} mm/h` : '0.0 mm/h',
-    stationId: ctx?.deviceId || 'RS-ESP32S3-01',
-    factor: ctx?.calibrationFactor ?? 0.64,
-    status: ctx?.humidityStatus || 'Lý tưởng',
-    trend: ctx?.pressureTrend || 'Ổn định',
-    category: ctx?.rainCategory || 'Không mưa'
-  };
-
-  // 1. Kiểm tra câu hỏi ngoài phạm vi đề tài
-  const isOutOfScope =
-    q.includes('chứng khoán') ||
-    q.includes('cổ phiếu') ||
-    q.includes('bitcoin') ||
-    q.includes('crypto') ||
-    q.includes('tiền ảo') ||
-    q.includes('viết thơ') ||
-    q.includes('thơ tình') ||
-    q.includes('bài thơ') ||
-    q.includes('nấu ăn') ||
-    q.includes('món ăn') ||
-    q.includes('công thức nấu') ||
-    q.includes('game') ||
-    q.includes('liên quân') ||
-    q.includes('free fire') ||
-    q.includes('showbiz') ||
-    q.includes('ca sĩ') ||
-    q.includes('diễn viên') ||
-    q.includes('tử vi') ||
-    q.includes('bói toán') ||
-    q.includes('tình yêu') ||
-    q.includes('tán gái') ||
-    q.includes('bóng đá') ||
-    q.includes('chính trị');
-
-  if (isOutOfScope) {
-    return (
-      `Chào bạn! Tôi là **RainSense AI** 🌧️ — Trợ lý Chuyên gia Khí tượng & Kỹ thuật thuộc Hệ thống Quan trắc Mưa Đô thị RainSense (trạm **${c.stationId}**).\n\n` +
-      `Câu hỏi này nằm ngoài phạm vi nghiên cứu và chuyên môn của dự án. Tôi được thiết kế chuyên trách để hỗ trợ bạn về:\n` +
-      `• 🌤️ **Dữ liệu thời tiết thời gian thực:** Nhiệt độ, độ ẩm, áp suất khí quyển từ cảm biến BME280.\n` +
-      `• 🌧️ **Đo đạc & Cảnh báo mưa:** Đếm xung gầu lật Hall A3144, lượng mưa tích lũy và nguy cơ ngập lụt đô thị.\n` +
-      `• 🛠️ **Kỹ thuật phần cứng IoT:** Vi điều khiển ESP32-S3, truyền thông MQTT TLS (Port 8883) và Dashboard.\n\n` +
-      `Bạn có muốn tôi kiểm tra tình hình thời tiết hiện tại hoặc giải đáp kỹ thuật liên quan đến trạm không? 📡`
-    );
-  }
-
-  // 2. Câu hỏi đời sống thường ngày ("hôm nay thế nào", "hôm nay có mưa không", "có nên mang ô",...)
-  const isDailyWeather =
-    q.includes('hôm nay thế nào') ||
-    q.includes('hôm nay ra sao') ||
-    q.includes('thời tiết hôm nay') ||
-    q.includes('trời hôm nay') ||
-    q.includes('có mưa không') ||
-    q.includes('trời có mưa') ||
-    q.includes('mưa không') ||
-    q.includes('mang ô') ||
-    q.includes('mang dù') ||
-    q.includes('áo mưa') ||
-    q.includes('ra đường') ||
-    q.includes('đi chơi') ||
-    q.includes('có nóng không') ||
-    q.includes('có lạnh không') ||
-    q.includes('có mát không') ||
-    q.includes('thời tiết này') ||
-    q.includes('tình hình hôm nay');
-
-  if (isDailyWeather) {
-    const rainVal = parseFloat(c.rain);
-    let advice = '';
-    if (rainVal > 5) {
-      advice = '🌧️ **Lời khuyên:** Khu vực đang có mưa, đường trơn trượt. Bạn nhớ mang theo áo mưa hoặc ô dù khi ra ngoài nhé!';
-    } else if (parseFloat(c.temp) >= 35) {
-      advice = '☀️ **Lời khuyên:** Thời tiết hôm nay khá nắng gắt và oi bức. Bạn nên hạn chế hoạt động ngoài trời vào giờ trưa, che nắng kỹ và uống nhiều nước!';
-    } else if (parseFloat(c.temp) < 24) {
-      advice = '🍃 **Lời khuyên:** Không khí hôm nay mát mẻ, rất thích hợp cho việc học tập, làm việc và các hoạt động ngoài trời!';
-    } else {
-      advice = '🌤️ **Lời khuyên:** Thời tiết hiện tại khô ráo, thoáng mát và rất thuận lợi cho việc di chuyển, sinh hoạt ngoài trời.';
-    }
-
-    return (
-      `Chào bạn! Hôm nay tại khu vực trạm quan trắc **${c.stationId}**, thời tiết ghi nhận như sau: 🌤️\n\n` +
-      `• 🌡️ **Nhiệt độ:** **${c.temp}** (Nhiệt cảm nhận Heat Index: **${c.heat}**)\n` +
-      `• 💧 **Độ ẩm không khí:** **${c.humid}** (${c.status})\n` +
-      `• 🌧️ **Tình hình mưa:** **${c.rain}** (${c.tips} lần lật gầu, hiện tại: **${c.category}**)\n` +
-      `• 🧭 **Khí áp:** **${c.press}** (Xu hướng: **${c.trend}**, ổn định)\n\n` +
-      `${advice}\n\n` +
-      `Bạn cần tôi kiểm tra thêm dữ liệu khí tượng nào khác không?`
-    );
-  }
-
-  // 3. Phân tích chỉ số khí tượng tổng quan
-  if (
-    q.includes('thời tiết') ||
-    q.includes('nhiệt độ') ||
-    q.includes('độ ẩm') ||
-    q.includes('hiện tại') ||
-    q.includes('chỉ số') ||
-    q.includes('tổng quan')
-  ) {
-    return (
-      `Dưới đây là báo cáo thời tiết thời gian thực từ trạm **${c.stationId}**: 🌤️\n\n` +
-      `| Chỉ số quan trắc | Giá trị đo | Ghi chú | \n` +
-      `|---|---|---| \n` +
-      `| 🌡️ **Nhiệt độ** | **${c.temp}** | Cảm biến BME280 (Điểm sương ${c.dew}) | \n` +
-      `| 💧 **Độ ẩm** | **${c.humid}** | Trạng thái: ${c.status} | \n` +
-      `| 🧭 **Khí áp** | **${c.press}** | Xu hướng: ${c.trend} | \n` +
-      `| 🌧️ **Lượng mưa hôm nay** | **${c.rain}** | ${c.tips} lần lật gầu A3144 | \n` +
-      `| ⚡ **Cường độ tức thời** | **${c.rate}** | Cấp độ: ${c.category} | \n\n` +
-      `💡 **Đánh giá:** Điều kiện thời tiết hiện tại rất thuận lợi, thoáng mát và khô ráo!`
-    );
-  }
-
-  // 4. Cảm biến mưa, gầu lật A3144, công thức tính mưa
-  if (q.includes('mưa') || q.includes('gầu lật') || q.includes('công thức') || q.includes('tính lượng mưa')) {
-    return (
-      `Dưới đây là cơ chế và công thức đo lượng mưa chuẩn xác của trạm **${c.stationId}**: 🌧️\n\n` +
-      `**🌧️ 1. Nguyên lý đo mưa gầu lật (Tipping Bucket):**\n` +
-      `• Nước mưa gom vào phễu hứng chảy vào một trong hai ngăn gầu bập bênh.\n` +
-      `• Đạt thể tích thiết kế (${c.factor} mm nước), gầu lật sang ngăn đối diện.\n` +
-      `• Nam châm gắn trên gầu kích hoạt ngắt phần cứng qua **cảm biến Hall A3144** (GPIO 10 ngắt FALLING).\n\n` +
-      `**📊 2. Công thức tính lượng mưa tích lũy:**\n` +
-      `• Lượng mưa tích lũy (mm) = Số lần lật (Tips) × Hệ số hiệu chuẩn (${c.factor} mm/tip)\n` +
-      `• Tổng số nhịp hôm nay: **${c.tips} lần lật** → **${c.rain}**.\n\n` +
-      `**⚡ 3. Công thức tính cường độ mưa tức thời (Rain Rate):**\n` +
-      `• Cường độ mưa (mm/h) = Lượng mưa trong 5 phút (mm) × 12\n` +
-      `• Lọc dội rung cơ học (Debounce): Khóa phần mềm 200ms chống xung giả.`
-    );
-  }
-
-  // 5. Phần cứng ESP32-S3 & Sơ đồ nối chân
-  if (q.includes('esp32') || q.includes('chân') || q.includes('sơ đồ') || q.includes('gpio') || q.includes('bme280')) {
-    return (
-      `Sơ đồ kết nối phần cứng chuẩn xác cho trạm **ESP32-S3 RainSense**: 🛠️\n\n` +
-      `**🧭 1. Cảm biến Môi trường BME280 & Màn hình OLED SH1106 (I2C chung):**\n` +
-      `• **VCC** → Chân **3V3** của ESP32-S3 *(Lưu ý: Không cắm 5V)*\n` +
-      `• **GND** → Chân **GND**\n` +
-      `• **SDA** → Chân **GPIO 8**\n` +
-      `• **SCL** → Chân **GPIO 9** (Xung I2C: 100kHz)\n\n` +
-      `**🌧️ 2. Cảm biến đếm xung mưa Hall A3144:**\n` +
-      `• **VCC** → Chân **3V3**, **GND** → Chân **GND**\n` +
-      `• **OUT** → Chân **GPIO 10** (Cấu hình INPUT_PULLUP, ngắt FALLING)\n\n` +
-      `**🔘 3. Nút Reset lượng mưa phần cứng:**\n` +
-      `• **Nút BOOT** tích hợp trên mạch: Chân **GPIO 0** (nhấn để reset mưa về 0.00 mm).\n` +
-      `• **Nguồn cấp:** Cáp Type-C 5V/1A.`
-    );
-  }
-
-  // 6. Mặc định
-  return (
-    `Trạm quan trắc **${c.stationId}** ghi nhận thông số thời gian thực: 📡\n\n` +
-    `• 🌡️ Nhiệt độ: **${c.temp}** (Điểm sương ${c.dew})\n` +
-    `• 💧 Độ ẩm: **${c.humid}** (${c.status})\n` +
-    `• 🧭 Áp suất: **${c.press}** (${c.trend})\n` +
-    `• 🌧️ Lượng mưa hôm nay: **${c.rain}** (${c.tips} nhịp lật)\n\n` +
-    `Bạn có cần tôi phân tích thêm về chỉ số khí tượng hay thông tin kỹ thuật nào không?`
-  );
+function getClientFallbackReply(query: string, ctx?: any, history: Message[] = []): string {
+  const normCtx = normalizeStationContext(ctx, ctx?.deviceId || 'RS-ESP32S3-01');
+  const chatTurns: ChatTurn[] = history.map((m) => ({
+    role: m.role,
+    content: m.content
+  }));
+  return generateRainSenseReply(query, normCtx, chatTurns);
 }
 
 const DEFAULT_WELCOME_MESSAGE: Message = {
   id: 'msg-welcome',
   role: 'assistant',
   content:
-    'Xin chào! Tôi là **RainSense AI** 🌧️ — Trợ lý Khí tượng & Giám sát Mưa Đô thị thông minh.\n\nTôi được kết nối trực tiếp với trạm quan trắc thời gian thực để hỗ trợ bạn:\n• 📊 **Phân tích chỉ số khí tượng**: Nhiệt độ, độ ẩm, áp suất khí quyển từ cảm biến BME280.\n• 🌧️ **Đo đạc lượng mưa**: Đếm nhịp lật gầu Hall A3144, lượng mưa tích lũy và cường độ mưa tức thời (mm/h).\n• ⚠️ **Cảnh báo giông bão**: Nhận diện sớm rãnh áp thấp và nguy cơ ngập lụt qua biến thiên áp suất.\n• 🔌 **Tư vấn kỹ thuật IoT**: Sơ đồ đấu nối chân ESP32-S3, cấu hình Multi-WiFi và giao thức MQTT TLS.\n\nBạn cần tôi kiểm tra hoặc phân tích dữ liệu nào lúc này? 📡',
+    'Mình là **RainSense AI** 🌧️, hỗ trợ đọc dữ liệu trạm, phân tích diễn biến mưa và giải thích cảm biến, MQTT trong dự án.\n\nBạn có thể hỏi thời tiết hiện tại, mưa ngưng rồi mưa lại, hoặc so sánh lượng mưa sáng và chiều.',
   timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 };
 
 const SUGGESTED_PROMPTS = [
-  '🌤️ Thời tiết hôm nay thế nào?',
-  '🌧️ Cách gầu lật A3144 tính lượng mưa?',
-  '⚠️ Khí áp giảm có nguy cơ bão không?',
-  '🔌 Sơ đồ nối chân ESP32-S3 & BME280',
-  '📶 Hướng dẫn xử lý khi trạm ngoại tuyến'
+  '🌤️ Phân tích thời tiết hiện tại',
+  '🌧️ Mưa nhiều, ngưng một lúc rồi mưa lại?',
+  '📊 So sánh lượng mưa sáng và chiều',
+  '⚙️ Cách gầu lật A3144 tính lượng mưa?',
+  '🔌 Cảm biến BME280 và ESP32-S3'
 ];
 
 export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: string }) {
@@ -411,7 +240,7 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
       setMessages((prev) => [...prev, botMsg]);
     } catch (err: any) {
       // Smart fallback: always provide helpful response grounded in telemetry data
-      const fallbackReply = getClientFallbackReply(text, contextData);
+      const fallbackReply = getClientFallbackReply(text, contextData, messages);
       const fallbackMsg: Message = {
         id: `bot-${Date.now()}`,
         role: 'assistant',

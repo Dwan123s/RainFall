@@ -10,7 +10,7 @@ export const aiController = {
       if (!message || typeof message !== 'string' || message.trim() === '') {
         return res.status(400).json({
           success: false,
-          error: 'Vui lòng cung cấp nội dung câu hỏi cho Chiikawa AI'
+          error: 'Vui lòng cung cấp nội dung câu hỏi cho RainSense AI'
         });
       }
 
@@ -27,7 +27,7 @@ export const aiController = {
     } catch (error: any) {
       return res.status(500).json({
         success: false,
-        error: error.message || 'Lỗi khi xử lý phản hồi từ Chiikawa AI'
+        error: error.message || 'Lỗi khi xử lý phản hồi từ RainSense AI'
       });
     }
   },
@@ -43,7 +43,7 @@ export const aiController = {
     } catch (error: any) {
       return res.status(500).json({
         success: false,
-        error: error.message || 'Lỗi khi lấy ngữ cảnh trạm cho Chiikawa AI'
+        error: error.message || 'Lỗi khi lấy ngữ cảnh trạm cho RainSense AI'
       });
     }
   }
