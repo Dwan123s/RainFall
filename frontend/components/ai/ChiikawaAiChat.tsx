@@ -23,6 +23,143 @@ interface Message {
   timestamp: string;
 }
 
+// Helper to remove any stray LaTeX tags and format mathematical text
+function cleanLatexArtifacts(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/\\text\{([^}]+)\}/g, '$1')
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '($1) / ($2)')
+    .replace(/\\times/g, '×')
+    .replace(/\\rightarrow/g, '→')
+    .replace(/\\le/g, '≤')
+    .replace(/\\ge/g, '≥')
+    .replace(/\\Delta/g, 'Δ')
+    .replace(/\\approx/g, '≈')
+    .replace(/\$\$/g, '')
+    .replace(/\$/g, '')
+    .replace(/^###\s*(.*)$/gm, '**$1**')
+    .replace(/^##\s*(.*)$/gm, '**$1**')
+    .replace(/^#\s*(.*)$/gm, '**$1**');
+}
+
+// Formatted message component that renders tables, bold text, code blocks cleanly
+function FormattedMessage({ content }: { content: string }) {
+  const cleaned = cleanLatexArtifacts(content);
+  const lines = cleaned.split('\n');
+
+  // Group lines into table blocks and text blocks
+  const blocks: Array<{ type: 'table' | 'text'; lines: string[] }> = [];
+  let currentBlock: { type: 'table' | 'text'; lines: string[] } | null = null;
+
+  for (const line of lines) {
+    const isTableLine = line.trim().startsWith('|') && line.trim().endsWith('|');
+    if (isTableLine) {
+      if (currentBlock && currentBlock.type === 'table') {
+        currentBlock.lines.push(line);
+      } else {
+        if (currentBlock) blocks.push(currentBlock);
+        currentBlock = { type: 'table', lines: [line] };
+      }
+    } else {
+      if (currentBlock && currentBlock.type === 'text') {
+        currentBlock.lines.push(line);
+      } else {
+        if (currentBlock) blocks.push(currentBlock);
+        currentBlock = { type: 'text', lines: [line] };
+      }
+    }
+  }
+  if (currentBlock) blocks.push(currentBlock);
+
+  // Helper to format inline bold & code
+  const renderInline = (str: string) => {
+    const parts = str.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return (
+          <strong key={idx} className="font-bold text-slate-900 dark:text-slate-100">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      if (part.startsWith('`') && part.endsWith('`')) {
+        return (
+          <code
+            key={idx}
+            className="px-1 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700/70 font-mono text-[11px] text-cyan-700 dark:text-cyan-300"
+          >
+            {part.slice(1, -1)}
+          </code>
+        );
+      }
+      return part;
+    });
+  };
+
+  return (
+    <div className="space-y-1.5 leading-relaxed text-xs">
+      {blocks.map((block, bIdx) => {
+        if (block.type === 'table') {
+          // Parse table rows
+          const rows = block.lines
+            .map((l) =>
+              l
+                .trim()
+                .split('|')
+                .slice(1, -1)
+                .map((cell) => cell.trim())
+            )
+            .filter((r) => r.length > 0 && !r.every((c) => /^[-:]+$/.test(c)));
+
+          if (rows.length === 0) return null;
+          const [header, ...bodyRows] = rows;
+
+          return (
+            <div
+              key={bIdx}
+              className="my-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs"
+            >
+              <table className="w-full text-left border-collapse text-[11px]">
+                <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700 font-semibold">
+                  <tr>
+                    {header.map((col, cIdx) => (
+                      <th key={cIdx} className="px-2.5 py-1.5">
+                        {renderInline(col)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800 bg-white/40 dark:bg-slate-900/40">
+                  {bodyRows.map((r, rIdx) => (
+                    <tr key={rIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                      {r.map((cell, cIdx) => (
+                        <td key={cIdx} className="px-2.5 py-1.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                          {renderInline(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
+        return (
+          <div key={bIdx} className="whitespace-pre-line">
+            {block.lines.map((line, lIdx) => (
+              <React.Fragment key={lIdx}>
+                {renderInline(line)}
+                {lIdx < block.lines.length - 1 && '\n'}
+              </React.Fragment>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Fallback response generator if network fails
 function getClientFallbackReply(query: string, ctx?: any): string {
   const q = query.toLowerCase().trim();
@@ -30,12 +167,100 @@ function getClientFallbackReply(query: string, ctx?: any): string {
     temp: ctx?.currentTemp !== null && ctx?.currentTemp !== undefined ? `${Number(ctx.currentTemp).toFixed(1)}°C` : '31.8°C',
     humid: ctx?.currentHumid !== null && ctx?.currentHumid !== undefined ? `${Number(ctx.currentHumid).toFixed(1)}%` : '48.8%',
     press: ctx?.currentPress !== null && ctx?.currentPress !== undefined ? `${Number(ctx.currentPress).toFixed(1)} hPa` : '1011.1 hPa',
+    dew: ctx?.dewPoint !== null && ctx?.dewPoint !== undefined ? `${Number(ctx.dewPoint).toFixed(1)}°C` : '19.6°C',
+    heat: ctx?.heatIndex !== null && ctx?.heatIndex !== undefined ? `${Number(ctx.heatIndex).toFixed(1)}°C` : '33.7°C',
     rain: ctx?.todayRainMm !== null && ctx?.todayRainMm !== undefined ? `${Number(ctx.todayRainMm).toFixed(2)} mm` : '1.28 mm',
     tips: ctx?.totalTipsToday ?? 2,
     rate: ctx?.currentRainRateMmH !== null && ctx?.currentRainRateMmH !== undefined ? `${Number(ctx.currentRainRateMmH).toFixed(1)} mm/h` : '0.0 mm/h',
-    stationId: ctx?.deviceId || 'RS-ESP32S3-01'
+    stationId: ctx?.deviceId || 'RS-ESP32S3-01',
+    factor: ctx?.calibrationFactor ?? 0.64,
+    status: ctx?.humidityStatus || 'Lý tưởng',
+    trend: ctx?.pressureTrend || 'Ổn định',
+    category: ctx?.rainCategory || 'Không mưa'
   };
 
+  // 1. Kiểm tra câu hỏi ngoài phạm vi đề tài
+  const isOutOfScope =
+    q.includes('chứng khoán') ||
+    q.includes('cổ phiếu') ||
+    q.includes('bitcoin') ||
+    q.includes('crypto') ||
+    q.includes('tiền ảo') ||
+    q.includes('viết thơ') ||
+    q.includes('thơ tình') ||
+    q.includes('bài thơ') ||
+    q.includes('nấu ăn') ||
+    q.includes('món ăn') ||
+    q.includes('công thức nấu') ||
+    q.includes('game') ||
+    q.includes('liên quân') ||
+    q.includes('free fire') ||
+    q.includes('showbiz') ||
+    q.includes('ca sĩ') ||
+    q.includes('diễn viên') ||
+    q.includes('tử vi') ||
+    q.includes('bói toán') ||
+    q.includes('tình yêu') ||
+    q.includes('tán gái') ||
+    q.includes('bóng đá') ||
+    q.includes('chính trị');
+
+  if (isOutOfScope) {
+    return (
+      `Chào bạn! Tôi là **RainSense AI** 🌧️ — Trợ lý Chuyên gia Khí tượng & Kỹ thuật thuộc Hệ thống Quan trắc Mưa Đô thị RainSense (trạm **${c.stationId}**).\n\n` +
+      `Câu hỏi này nằm ngoài phạm vi nghiên cứu và chuyên môn của dự án. Tôi được thiết kế chuyên trách để hỗ trợ bạn về:\n` +
+      `• 🌤️ **Dữ liệu thời tiết thời gian thực:** Nhiệt độ, độ ẩm, áp suất khí quyển từ cảm biến BME280.\n` +
+      `• 🌧️ **Đo đạc & Cảnh báo mưa:** Đếm xung gầu lật Hall A3144, lượng mưa tích lũy và nguy cơ ngập lụt đô thị.\n` +
+      `• 🛠️ **Kỹ thuật phần cứng IoT:** Vi điều khiển ESP32-S3, truyền thông MQTT TLS (Port 8883) và Dashboard.\n\n` +
+      `Bạn có muốn tôi kiểm tra tình hình thời tiết hiện tại hoặc giải đáp kỹ thuật liên quan đến trạm không? 📡`
+    );
+  }
+
+  // 2. Câu hỏi đời sống thường ngày ("hôm nay thế nào", "hôm nay có mưa không", "có nên mang ô",...)
+  const isDailyWeather =
+    q.includes('hôm nay thế nào') ||
+    q.includes('hôm nay ra sao') ||
+    q.includes('thời tiết hôm nay') ||
+    q.includes('trời hôm nay') ||
+    q.includes('có mưa không') ||
+    q.includes('trời có mưa') ||
+    q.includes('mưa không') ||
+    q.includes('mang ô') ||
+    q.includes('mang dù') ||
+    q.includes('áo mưa') ||
+    q.includes('ra đường') ||
+    q.includes('đi chơi') ||
+    q.includes('có nóng không') ||
+    q.includes('có lạnh không') ||
+    q.includes('có mát không') ||
+    q.includes('thời tiết này') ||
+    q.includes('tình hình hôm nay');
+
+  if (isDailyWeather) {
+    const rainVal = parseFloat(c.rain);
+    let advice = '';
+    if (rainVal > 5) {
+      advice = '🌧️ **Lời khuyên:** Khu vực đang có mưa, đường trơn trượt. Bạn nhớ mang theo áo mưa hoặc ô dù khi ra ngoài nhé!';
+    } else if (parseFloat(c.temp) >= 35) {
+      advice = '☀️ **Lời khuyên:** Thời tiết hôm nay khá nắng gắt và oi bức. Bạn nên hạn chế hoạt động ngoài trời vào giờ trưa, che nắng kỹ và uống nhiều nước!';
+    } else if (parseFloat(c.temp) < 24) {
+      advice = '🍃 **Lời khuyên:** Không khí hôm nay mát mẻ, rất thích hợp cho việc học tập, làm việc và các hoạt động ngoài trời!';
+    } else {
+      advice = '🌤️ **Lời khuyên:** Thời tiết hiện tại khô ráo, thoáng mát và rất thuận lợi cho việc di chuyển, sinh hoạt ngoài trời.';
+    }
+
+    return (
+      `Chào bạn! Hôm nay tại khu vực trạm quan trắc **${c.stationId}**, thời tiết ghi nhận như sau: 🌤️\n\n` +
+      `• 🌡️ **Nhiệt độ:** **${c.temp}** (Nhiệt cảm nhận Heat Index: **${c.heat}**)\n` +
+      `• 💧 **Độ ẩm không khí:** **${c.humid}** (${c.status})\n` +
+      `• 🌧️ **Tình hình mưa:** **${c.rain}** (${c.tips} lần lật gầu, hiện tại: **${c.category}**)\n` +
+      `• 🧭 **Khí áp:** **${c.press}** (Xu hướng: **${c.trend}**, ổn định)\n\n` +
+      `${advice}\n\n` +
+      `Bạn cần tôi kiểm tra thêm dữ liệu khí tượng nào khác không?`
+    );
+  }
+
+  // 3. Phân tích chỉ số khí tượng tổng quan
   if (
     q.includes('thời tiết') ||
     q.includes('nhiệt độ') ||
@@ -48,42 +273,58 @@ function getClientFallbackReply(query: string, ctx?: any): string {
       `Dưới đây là báo cáo thời tiết thời gian thực từ trạm **${c.stationId}**: 🌤️\n\n` +
       `| Chỉ số quan trắc | Giá trị đo | Ghi chú | \n` +
       `|---|---|---| \n` +
-      `| 🌡️ **Nhiệt độ** | **${c.temp}** | Cảm biến BME280 | \n` +
-      `| 💧 **Độ ẩm** | **${c.humid}** | Trạng thái lý tưởng | \n` +
-      `| 🧭 **Khí áp** | **${c.press}** | Áp suất khí quyển ổn định | \n` +
+      `| 🌡️ **Nhiệt độ** | **${c.temp}** | Cảm biến BME280 (Điểm sương ${c.dew}) | \n` +
+      `| 💧 **Độ ẩm** | **${c.humid}** | Trạng thái: ${c.status} | \n` +
+      `| 🧭 **Khí áp** | **${c.press}** | Xu hướng: ${c.trend} | \n` +
       `| 🌧️ **Lượng mưa hôm nay** | **${c.rain}** | ${c.tips} lần lật gầu A3144 | \n` +
-      `| ⚡ **Cường độ tức thời** | **${c.rate}** | Không mưa | \n\n` +
+      `| ⚡ **Cường độ tức thời** | **${c.rate}** | Cấp độ: ${c.category} | \n\n` +
       `💡 **Đánh giá:** Điều kiện thời tiết hiện tại rất thuận lợi, thoáng mát và khô ráo!`
     );
   }
 
-  if (q.includes('mưa') || q.includes('gầu lật') || q.includes('công thức')) {
+  // 4. Cảm biến mưa, gầu lật A3144, công thức tính mưa
+  if (q.includes('mưa') || q.includes('gầu lật') || q.includes('công thức') || q.includes('tính lượng mưa')) {
     return (
-      `Công thức tính lượng mưa của trạm **${c.stationId}**: 🌧️\n\n` +
-      `$$\\text{Lượng mưa (mm)} = \\text{Số lần lật (Tips)} \\times 0.64\\text{ mm/tip}$$\n\n` +
-      `- **Cảm biến:** Gầu lật kết hợp IC Hall A3144 (GPIO 10 ngắt FALLING).\n` +
-      `- **Số nhịp hôm nay:** **${c.tips} nhịp** $\\rightarrow$ **${c.rain}**.\n` +
-      `- **Cường độ mưa:** Tính theo cửa sổ trượt 5 phút quy đổi về mm/h.`
+      `Dưới đây là cơ chế và công thức đo lượng mưa chuẩn xác của trạm **${c.stationId}**: 🌧️\n\n` +
+      `**🌧️ 1. Nguyên lý đo mưa gầu lật (Tipping Bucket):**\n` +
+      `• Nước mưa gom vào phễu hứng chảy vào một trong hai ngăn gầu bập bênh.\n` +
+      `• Đạt thể tích thiết kế (${c.factor} mm nước), gầu lật sang ngăn đối diện.\n` +
+      `• Nam châm gắn trên gầu kích hoạt ngắt phần cứng qua **cảm biến Hall A3144** (GPIO 10 ngắt FALLING).\n\n` +
+      `**📊 2. Công thức tính lượng mưa tích lũy:**\n` +
+      `• Lượng mưa tích lũy (mm) = Số lần lật (Tips) × Hệ số hiệu chuẩn (${c.factor} mm/tip)\n` +
+      `• Tổng số nhịp hôm nay: **${c.tips} lần lật** → **${c.rain}**.\n\n` +
+      `**⚡ 3. Công thức tính cường độ mưa tức thời (Rain Rate):**\n` +
+      `• Cường độ mưa (mm/h) = Lượng mưa trong 5 phút (mm) × 12\n` +
+      `• Lọc dội rung cơ học (Debounce): Khóa phần mềm 200ms chống xung giả.`
     );
   }
 
+  // 5. Phần cứng ESP32-S3 & Sơ đồ nối chân
   if (q.includes('esp32') || q.includes('chân') || q.includes('sơ đồ') || q.includes('gpio') || q.includes('bme280')) {
     return (
-      `Sơ đồ kết nối phần cứng trạm **RainSense ESP32-S3**: 🛠️\n\n` +
-      `- 🧭 **BME280 (I2C):** SDA nối **GPIO 8**, SCL nối **GPIO 9**, VCC nối **3V3**, GND nối **GND**.\n` +
-      `- 🌧️ **Cảm biến mưa Hall A3144:** OUT nối **GPIO 10** (ngắt FALLING), VCC nối **3V3**, GND nối **GND**.\n` +
-      `- 🔘 **Nút Reset lượng mưa:** Nút BOOT trên chân **GPIO 0**.\n` +
-      `- ⚡ **Nguồn:** Cáp Type-C 5V/1A.`
+      `Sơ đồ kết nối phần cứng chuẩn xác cho trạm **ESP32-S3 RainSense**: 🛠️\n\n` +
+      `**🧭 1. Cảm biến Môi trường BME280 & Màn hình OLED SH1106 (I2C chung):**\n` +
+      `• **VCC** → Chân **3V3** của ESP32-S3 *(Lưu ý: Không cắm 5V)*\n` +
+      `• **GND** → Chân **GND**\n` +
+      `• **SDA** → Chân **GPIO 8**\n` +
+      `• **SCL** → Chân **GPIO 9** (Xung I2C: 100kHz)\n\n` +
+      `**🌧️ 2. Cảm biến đếm xung mưa Hall A3144:**\n` +
+      `• **VCC** → Chân **3V3**, **GND** → Chân **GND**\n` +
+      `• **OUT** → Chân **GPIO 10** (Cấu hình INPUT_PULLUP, ngắt FALLING)\n\n` +
+      `**🔘 3. Nút Reset lượng mưa phần cứng:**\n` +
+      `• **Nút BOOT** tích hợp trên mạch: Chân **GPIO 0** (nhấn để reset mưa về 0.00 mm).\n` +
+      `• **Nguồn cấp:** Cáp Type-C 5V/1A.`
     );
   }
 
+  // 6. Mặc định
   return (
     `Trạm quan trắc **${c.stationId}** ghi nhận thông số thời gian thực: 📡\n\n` +
-    `- 🌡️ Nhiệt độ: **${c.temp}**\n` +
-    `- 💧 Độ ẩm: **${c.humid}**\n` +
-    `- 🧭 Áp suất: **${c.press}**\n` +
-    `- 🌧️ Lượng mưa hôm nay: **${c.rain}** (${c.tips} nhịp lật)\n\n` +
-    `Bạn có cần tôi phân tích thêm về chỉ số nào không?`
+    `• 🌡️ Nhiệt độ: **${c.temp}** (Điểm sương ${c.dew})\n` +
+    `• 💧 Độ ẩm: **${c.humid}** (${c.status})\n` +
+    `• 🧭 Áp suất: **${c.press}** (${c.trend})\n` +
+    `• 🌧️ Lượng mưa hôm nay: **${c.rain}** (${c.tips} nhịp lật)\n\n` +
+    `Bạn có cần tôi phân tích thêm về chỉ số khí tượng hay thông tin kỹ thuật nào không?`
   );
 }
 
@@ -96,7 +337,7 @@ const DEFAULT_WELCOME_MESSAGE: Message = {
 };
 
 const SUGGESTED_PROMPTS = [
-  '🌤️ Phân tích thời tiết hiện tại',
+  '🌤️ Thời tiết hôm nay thế nào?',
   '🌧️ Cách gầu lật A3144 tính lượng mưa?',
   '⚠️ Khí áp giảm có nguy cơ bão không?',
   '🔌 Sơ đồ nối chân ESP32-S3 & BME280',
@@ -169,13 +410,15 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
 
       setMessages((prev) => [...prev, botMsg]);
     } catch (err: any) {
-      const errorMsg: Message = {
+      // Smart fallback: always provide helpful response grounded in telemetry data
+      const fallbackReply = getClientFallbackReply(text, contextData);
+      const fallbackMsg: Message = {
         id: `bot-${Date.now()}`,
         role: 'assistant',
-        content: getClientFallbackReply(text, contextData),
+        content: fallbackReply,
         timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
       };
-      setMessages((prev) => [...prev, errorMsg]);
+      setMessages((prev) => [...prev, fallbackMsg]);
     } finally {
       setIsTyping(false);
     }
@@ -305,17 +548,17 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                 <span className="flex items-center gap-1">
                   <span className="text-orange-500">🌡️</span>
-                  <span>{contextData.currentTemp !== null ? `${contextData.currentTemp.toFixed(1)}°C` : '--'}</span>
+                  <span>{contextData.currentTemp !== null ? `${Number(contextData.currentTemp).toFixed(1)}°C` : '--'}</span>
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <span className="text-blue-500">💧</span>
-                  <span>{contextData.currentHumid !== null ? `${contextData.currentHumid.toFixed(1)}%` : '--'}</span>
+                  <span>{contextData.currentHumid !== null ? `${Number(contextData.currentHumid).toFixed(1)}%` : '--'}</span>
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <span className="text-cyan-500">🌧️</span>
-                  <span>{contextData.todayRainMm?.toFixed(1) ?? '0.0'}mm</span>
+                  <span>{contextData.todayRainMm !== null && contextData.todayRainMm !== undefined ? `${Number(contextData.todayRainMm).toFixed(1)}mm` : '0.0mm'}</span>
                 </span>
               </div>
               <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 font-semibold border border-cyan-500/20">
@@ -348,11 +591,16 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
                       : 'bg-slate-100 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/50 rounded-bl-xs'
                   }`}
                 >
-                  <div className="whitespace-pre-line prose-xs dark:prose-invert">
-                    {msg.content}
-                  </div>
+                  {msg.role === 'user' ? (
+                    <div className="whitespace-pre-line font-medium text-white">
+                      {msg.content}
+                    </div>
+                  ) : (
+                    <FormattedMessage content={msg.content} />
+                  )}
+
                   <div
-                    className={`text-[9px] mt-1 font-mono text-right ${
+                    className={`text-[9px] mt-1.5 font-mono text-right ${
                       msg.role === 'user'
                         ? 'text-cyan-100/75'
                         : 'text-slate-400 dark:text-slate-500'
@@ -419,7 +667,7 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder="Hỏi RainSense AI về lượng mưa, thời tiết, cảm biến ESP32-S3..."
+                placeholder="Hỏi RainSense AI: 'Hôm nay thế nào?', 'Có mưa không?', cảm biến ESP32-S3..."
                 disabled={isTyping}
                 className="flex-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 disabled:opacity-50"
               />
