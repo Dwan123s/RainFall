@@ -59,6 +59,12 @@ export class AiService {
       logger.warn({ err: err.message }, 'Failed to compute rain history for AI context');
     }
 
+    const calibrationFactor = config?.rainMmPerTip ?? rainfall?.calibrationFactor ?? 0.64;
+    const yesterdayRainMm = rainfall?.yesterdayMm ?? null;
+    const yesterdayTips = yesterdayRainMm !== null && calibrationFactor > 0
+      ? Math.round(yesterdayRainMm / calibrationFactor)
+      : null;
+
     return normalizeStationContext({
       deviceId: device?.deviceId || deviceId,
       stationName: device?.name || `Trạm ${deviceId}`,
@@ -72,10 +78,12 @@ export class AiService {
       dewPoint,
       heatIndex,
       todayRainMm: rainfall?.todayMm ?? (rainHistory ? rainHistory.recordedTotalMm : null),
+      yesterdayRainMm,
+      yesterdayTips,
       rolling24hRainMm: rainfall?.rolling24hMm ?? null,
       currentRainRateMmH: rainfall?.currentRateMmH ?? null,
       totalTipsToday: rainfall?.totalTipsToday ?? null,
-      calibrationFactor: config?.rainMmPerTip ?? rainfall?.calibrationFactor ?? 0.64,
+      calibrationFactor,
       pressureTrend,
       recentAlerts: (recentAlerts || []).map((a) => a.message),
       rainHistory

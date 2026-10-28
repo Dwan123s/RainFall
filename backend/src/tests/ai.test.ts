@@ -275,8 +275,38 @@ describe('RainSense AI Tests', () => {
 
     it('Công thức và gầu lật: should explain Hall A3144 and 5-min conversion accurately', () => {
       const reply = generateRainSenseReply('Công thức tính lượng mưa của gầu lật A3144?', baseContext);
-      assert.ok(reply.includes('lượng mưa (mm) = số nhịp × hệ số hiệu chuẩn'));
-      assert.ok(reply.includes('Cường độ (mm/h) = lượng mưa ghi nhận trong 5 phút × 12'));
+      assert.ok(reply.includes('Lượng mưa (mm) = Số nhịp lật'));
+      assert.ok(reply.includes('Cường độ (mm/h) = Lượng mưa trong 5 phút'));
+      assert.ok(reply.includes('```'), 'Must present formulas inside code blocks for easy reading');
+    });
+
+    it('Tính số lần gầu lật trong hôm qua: should calculate tips yesterday and format formula cleanly', () => {
+      const ctxWithYesterday: StationContext = {
+        ...baseContext,
+        yesterdayRainMm: 12.8,
+        yesterdayTips: 20
+      };
+      const reply = generateRainSenseReply('tính số lần gầu lật trong hôm qua', ctxWithYesterday);
+      assert.ok(reply.includes('12.80 mm') || reply.includes('12.8 mm'));
+      assert.ok(reply.includes('20 nhịp lật'));
+      assert.ok(reply.includes('Số nhịp lật (Tips) = Lượng mưa (mm) / Hệ số hiệu chuẩn'));
+      assert.ok(reply.includes('```'), 'Must use code block formatting for formula');
+    });
+
+    it('Sơ đồ mạch và kết nối phần cứng ESP32-S3: should provide full pinout table', () => {
+      const reply = generateRainSenseReply('sơ đồ nối chân ESP32-S3 & mạch điện', baseContext);
+      assert.ok(reply.includes('GPIO 10'), 'Must specify Hall sensor interrupt pin GPIO 10');
+      assert.ok(reply.includes('GPIO 8'), 'Must specify I2C SDA GPIO 8');
+      assert.ok(reply.includes('GPIO 9'), 'Must specify I2C SCL GPIO 9');
+      assert.ok(reply.includes('BME280'));
+      assert.ok(reply.includes('|'), 'Must format pinout as a markdown table');
+    });
+
+    it('Công thức điểm sương & khí tượng: should display Magnus-Tetens in code block', () => {
+      const reply = generateRainSenseReply('Công thức tính điểm sương & chỉ số nhiệt', baseContext);
+      assert.ok(reply.includes('Magnus-Tetens'));
+      assert.ok(reply.includes('Điểm sương Td'));
+      assert.ok(reply.includes('```'));
     });
 
     it('Câu hỏi ngoài RainSense: should politely refuse in one sentence and redirect to RainSense', () => {

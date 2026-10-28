@@ -29,17 +29,45 @@ interface Message {
   timestamp: string;
 }
 
-// Formatted message component that renders tables, bold text, code blocks cleanly
+// Formatted message component that renders code blocks, tables, bold text, inline code cleanly
 function FormattedMessage({ content }: { content: string }) {
   const cleaned = cleanLatexArtifacts(content);
   const lines = cleaned.split('\n');
 
-  // Group lines into table blocks and text blocks
-  const blocks: Array<{ type: 'table' | 'text'; lines: string[] }> = [];
-  let currentBlock: { type: 'table' | 'text'; lines: string[] } | null = null;
+  type Block =
+    | { type: 'code'; lines: string[] }
+    | { type: 'table'; lines: string[] }
+    | { type: 'text'; lines: string[] };
 
-  for (const line of lines) {
-    const isTableLine = line.trim().startsWith('|') && line.trim().endsWith('|');
+  const blocks: Block[] = [];
+  let currentBlock: Block | null = null;
+  let inCode = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('```')) {
+      if (inCode) {
+        inCode = false;
+        if (currentBlock) blocks.push(currentBlock);
+        currentBlock = null;
+      } else {
+        if (currentBlock) blocks.push(currentBlock);
+        inCode = true;
+        currentBlock = { type: 'code', lines: [] };
+      }
+      continue;
+    }
+
+    if (inCode) {
+      if (currentBlock && currentBlock.type === 'code') {
+        currentBlock.lines.push(line);
+      }
+      continue;
+    }
+
+    const isTableLine = trimmed.startsWith('|') && trimmed.endsWith('|');
     if (isTableLine) {
       if (currentBlock && currentBlock.type === 'table') {
         currentBlock.lines.push(line);
@@ -86,8 +114,27 @@ function FormattedMessage({ content }: { content: string }) {
   return (
     <div className="space-y-1.5 leading-relaxed text-xs">
       {blocks.map((block, bIdx) => {
+        if (block.type === 'code') {
+          return (
+            <div
+              key={bIdx}
+              className="my-2.5 rounded-xl border border-cyan-500/40 bg-slate-900 shadow-md overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-3 py-1.5 bg-slate-800/90 border-b border-slate-700/60 text-[10px] font-semibold text-cyan-400 select-none">
+                <span className="flex items-center gap-1.5">
+                  <span>📐</span>
+                  <span>CÔNG THỨC & THÔNG SỐ KỸ THUẬT</span>
+                </span>
+                <span className="text-slate-400 font-mono text-[9px]">RainSense Math</span>
+              </div>
+              <div className="p-3 font-mono text-[11px] leading-relaxed overflow-x-auto text-cyan-200 whitespace-pre">
+                {block.lines.join('\n')}
+              </div>
+            </div>
+          );
+        }
+
         if (block.type === 'table') {
-          // Parse table rows
           const rows = block.lines
             .map((l) =>
               l
@@ -161,16 +208,16 @@ const DEFAULT_WELCOME_MESSAGE: Message = {
   id: 'msg-welcome',
   role: 'assistant',
   content:
-    'Mình là **RainSense AI** 🌧️, hỗ trợ đọc dữ liệu trạm, phân tích diễn biến mưa và giải thích cảm biến, MQTT trong dự án.\n\nBạn có thể hỏi thời tiết hiện tại, mưa ngưng rồi mưa lại, hoặc so sánh lượng mưa sáng và chiều.',
+    'Mình là **RainSense AI** 🌧️, hỗ trợ toàn diện về dữ liệu vi khí hậu và đồ án trạm quan trắc RainSense (ESP32-S3, gầu lật Hall A3144, BME280, MQTT TLS).\n\nBạn có thể hỏi về công thức tính mưa, số lần lật gầu hôm qua/hôm nay, sơ đồ mạch điện hoặc thời tiết hiện tại.',
   timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 };
 
 const SUGGESTED_PROMPTS = [
+  '🌧️ Cách gầu lật A3144 tính lượng mưa?',
+  '📊 Tính số lần gầu lật trong hôm qua',
+  '🔌 Sơ đồ nối chân ESP32-S3 & mạch điện',
   '🌤️ Phân tích thời tiết hiện tại',
-  '🌧️ Mưa nhiều, ngưng một lúc rồi mưa lại?',
-  '📊 So sánh lượng mưa sáng và chiều',
-  '⚙️ Cách gầu lật A3144 tính lượng mưa?',
-  '🔌 Cảm biến BME280 và ESP32-S3'
+  '🌡️ Công thức tính điểm sương & khí áp'
 ];
 
 export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: string }) {
