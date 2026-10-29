@@ -372,6 +372,136 @@ describe('RainSense AI Tests', () => {
       assert.ok(RAIN_SENSE_POLICY.includes('BME280'));
       assert.ok(RAIN_SENSE_POLICY.includes('Hall A3144'));
       assert.ok(RAIN_SENSE_POLICY.includes('MQTT'));
+      assert.ok(RAIN_SENSE_POLICY.includes('BỔ SUNG NHIỆM VỤ CHO RAINSENSE AI: THIÊN TAI VÀ TÍNH GẦU LẬT'));
+    });
+  });
+
+  // =========================================================================
+  // 5. BỔ SUNG NHIỆM VỤ: THIÊN TAI VÀ TÍNH GẦU LẬT (13 KỊCH BẢN KIỂM THỬ)
+  // =========================================================================
+  describe('Thiên tai và tính gầu lật (13 kịch bản bổ sung)', () => {
+    const baseContext: StationContext = {
+      deviceId: 'RS-ESP32S3-01',
+      stationName: 'RainSense',
+      timezone: 'Asia/Ho_Chi_Minh',
+      isOnline: true,
+      observedAt: new Date(Date.now() - 60000).toISOString(),
+      lastSeen: new Date().toISOString(),
+      currentTemp: 28.0,
+      currentHumid: 85.0,
+      currentPress: 1008.0,
+      dewPoint: 25.2,
+      heatIndex: 32.1,
+      todayRainMm: 16.0,
+      rolling24hRainMm: 16.0,
+      currentRainRateMmH: 7.7,
+      totalTipsToday: 25,
+      calibrationFactor: 0.64,
+      pressureTrend: 'Ổn định',
+      recentAlerts: [],
+      rainHistory: null
+    };
+
+    // 1. Mưa kéo dài, lượng mưa giờ tăng: Nêu bằng chứng và hệ quả nếu tiếp tục; không bịa giờ ngập
+    it('1. Mưa lớn kéo dài thì sắp tới thế nào: should give conditional hazards without fabricating flood time', () => {
+      const reply = generateRainSenseReply('Mưa lớn kéo dài thì sắp tới thế nào?', baseContext);
+      assert.ok(reply.includes('nguy cơ lũ quét và sạt lở'));
+      assert.ok(reply.includes('ngập cục bộ'));
+      assert.ok(reply.includes('kịch bản có điều kiện'));
+      assert.ok(reply.includes('chưa có dữ liệu mực nước, địa hình và độ ẩm đất'));
+      assert.ok(!reply.includes('14:00 ngập'));
+    });
+
+    // 2. Độ ẩm không khí cao: Không suy ra đất đã bão hòa
+    it('2. Độ ẩm không khí cao: should NOT infer soil is saturated', () => {
+      const reply = generateRainSenseReply('Độ ẩm không khí cao thì đất bão hòa chưa?', baseContext);
+      assert.ok(reply.includes('BME280'));
+      assert.ok(reply.includes('không phải là độ ẩm đất'));
+      assert.ok(reply.includes('không đồng nghĩa đất đã bão hòa'));
+    });
+
+    // 3. Mưa ngưng, cường độ bằng 0: Chưa kết luận hết nguy cơ từ thượng nguồn
+    it('3. Mưa ngưng, cường độ bằng 0: should warn of upstream water and unstable wet slopes', () => {
+      const reply = generateRainSenseReply('Mưa ngưng, cường độ bằng 0 thì đã hết nguy cơ chưa?', baseContext);
+      assert.ok(reply.includes('chưa thể kết luận hết nguy cơ'));
+      assert.ok(reply.includes('thượng nguồn'));
+      assert.ok(reply.includes('sườn dốc'));
+    });
+
+    // 4. Telemetry thiếu, giờ hiện tại chưa đủ: Không khẳng định xu hướng hoặc đủ số nhịp
+    it('4. Telemetry thiếu, giờ hiện tại chưa đủ: should refuse to assert rain trend or full tips', () => {
+      const reply = generateRainSenseReply('Telemetry thiếu, giờ hiện tại chưa đủ thì xu hướng thế nào?', baseContext);
+      assert.ok(reply.includes('không thể khẳng định chắc chắn xu hướng'));
+      assert.ok(reply.includes('chưa xác định đủ số nhịp'));
+    });
+
+    // 5. 12.8 mm, 0.64 mm/tip: 20 lần tương đương
+    it('5. 12.8 mm, 0.64 mm/tip: should compute 20 equivalent tips', () => {
+      const reply = generateRainSenseReply('Giờ này đo 12.8 mm, k=0.64 mm/tip thì bao nhiêu lần?', baseContext);
+      assert.ok(reply.includes('20 lần tương đương'));
+      assert.ok(reply.includes('12.8 / 0.64 = 20'));
+    });
+
+    // 6. 32 mm/ngày, 0.64 mm/tip: 50 lần tương đương
+    it('6. 32 mm/ngày, 0.64 mm/tip: should compute 50 equivalent tips and mention day factor changes', () => {
+      const reply = generateRainSenseReply('Ngày đo 32 mm, k=0.64 mm/tip?', baseContext);
+      assert.ok(reply.includes('50 lần'));
+      assert.ok(reply.includes('hệ số đã đổi trong ngày'));
+    });
+
+    // 7. 10 mm, 0.64 mm/tip: 15.625 lần tương đương, khoảng 16 nếu làm tròn
+    it('7. 10 mm, 0.64 mm/tip: should return 15.625 equivalent and approx 16 rounded', () => {
+      const reply = generateRainSenseReply('10 mm, k=0.64 mm/tip?', baseContext);
+      assert.ok(reply.includes('15.625 lần tương đương'));
+      assert.ok(reply.includes('khoảng 16'));
+    });
+
+    // 8. 12.8 mm/h trong 30 phút, 0.64 mm/tip: 6.4 mm, 10 lần tương đương; ghi rõ giả định
+    it('8. 12.8 mm/h trong 30 phút, 0.64: should compute 6.4 mm, 10 tips and state hypothesis', () => {
+      const reply = generateRainSenseReply('Nếu 12.8 mm/h trong 30 phút, k=0.64?', baseContext);
+      assert.ok(reply.includes('6.4 mm'));
+      assert.ok(reply.includes('10 lần'));
+      assert.ok(reply.includes('giữ nguyên tốc độ giả định'));
+      assert.ok(reply.includes('kịch bản tính toán, không phải dự báo mưa'));
+    });
+
+    // 9. 10 mm/h, không có thời lượng: Yêu cầu thời lượng, không dùng mm/h như mm
+    it('9. 10 mm/h without duration: should request duration and forbid using mm/h directly as mm', () => {
+      const reply = generateRainSenseReply('10 mm/h, k=0.64 thì bao nhiêu lần gầu lật?', baseContext);
+      assert.ok(reply.includes('thời lượng'));
+      assert.ok(reply.includes('không thể dùng trực tiếp'));
+    });
+
+    // 10. Hệ số bằng 0, âm hoặc thiếu: Yêu cầu hệ số hợp lệ
+    it('10. Invalid or missing calibration factor: should require valid k > 0', () => {
+      const replyZero = generateRainSenseReply('12.8 mm, k=0 thì bao nhiêu lần?', baseContext);
+      assert.ok(replyZero.includes('lớn hơn 0 (k > 0)'));
+
+      const replyNeg = generateRainSenseReply('12.8 mm, k=-0.64 thì bao nhiêu lần?', baseContext);
+      assert.ok(replyNeg.includes('lớn hơn 0 (k > 0)'));
+
+      const replyMissing = generateRainSenseReply('10 mm thì bao nhiêu lần gầu lật?', baseContext);
+      assert.ok(replyMissing.includes('hệ số hiệu chuẩn k'));
+    });
+
+    // 11. Hệ số đổi giữa ngày: Cộng nhịp thực, không chia tổng bằng hệ số hiện tại
+    it('11. Calibration change during day: should advise summing actual event tips', () => {
+      const reply = generateRainSenseReply('Hệ số hiệu chuẩn thay đổi giữa ngày thì tính số lần gầu lật thế nào?', baseContext);
+      assert.ok(reply.includes('cộng nhịp từng sự kiện'));
+      assert.ok(reply.includes('không chia toàn bộ lượng mưa lịch sử cho hệ số hiện tại'));
+    });
+
+    // 12. Hỏi số nhịp giờ/ngày đã có dữ liệu: Trả số nhịp theo đúng khoảng và múi giờ
+    it('12. Query recorded tips today: should return recorded tips and timezone interval', () => {
+      const reply = generateRainSenseReply('Hôm nay ghi nhận bao nhiêu nhịp gầu lật?', baseContext);
+      assert.ok(reply.includes('25 nhịp lật'));
+      assert.ok(reply.includes('Asia/Ho_Chi_Minh'));
+    });
+
+    // 13. Hỏi ngày chưa có trong context: Nêu thiếu dữ liệu của ngày đó
+    it('13. Query date not in context: should state missing data for that date', () => {
+      const reply = generateRainSenseReply('Ngày mai trạm lật bao nhiêu lần gầu?', baseContext);
+      assert.ok(reply.includes('chưa có dữ liệu quan trắc của ngày bạn hỏi'));
     });
   });
 });

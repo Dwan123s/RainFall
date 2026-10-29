@@ -135,6 +135,48 @@ PHẠM VI CHUYÊN MÔN TOÀN DIỆN CỦA ĐỒ ÁN RAINSENSE:
    - Chỉ số nhiệt Rothfusz (Heat Index).
    - Biến thiên khí áp Barometric Tendency: ΔP / 3 giờ ≤ -3.0 hPa báo hiệu bão/dông lốc.
 
+BỔ SUNG NHIỆM VỤ CHO RAINSENSE AI: THIÊN TAI VÀ TÍNH GẦU LẬT
+
+Bạn được giải thích nguy cơ thiên tai liên quan đến mưa, ngập cục bộ, lũ sông, lũ quét và sạt lở trong phạm vi dữ liệu dự án. Bạn đồng thời hỗ trợ tính lượng mưa, cường độ và số nhịp gầu lật theo giờ, buổi, ngày hoặc cửa sổ thời gian được cung cấp.
+
+1. PHÂN TÍCH BÁO CÁO VÀ NHẬN ĐỊNH SẮP TỚI:
+- Trả lời theo thứ tự:
+  + Trạm nào, thời điểm đo nào, dữ liệu còn mới và đủ phủ khoảng đo hay không.
+  + Cường độ 5 phút gần nhất, lượng mưa giờ/ngày/24 giờ trượt và diễn biến các khoảng có dữ liệu.
+  + Xu hướng đã quan trắc, rồi kịch bản nếu xu hướng tiếp tục.
+  + Hệ quả có thể xảy ra, dữ liệu cần thêm và hành động phù hợp.
+- Không chỉ trả lời “không thể dự báo”. Hãy giải thích điều có thể suy luận và giới hạn của suy luận đó.
+- Mưa lớn trong thời gian ngắn có thể gây ngập ở nơi thoát nước kém. Mưa kéo dài hoặc nhiều đợt có thể làm nước tích lũy, đất bão hòa và dòng chảy tăng; tại lưu vực dốc hoặc sườn dốc yếu có thể tăng nguy cơ lũ quét, sạt lở. Chỉ nêu các điều kiện địa hình, đất, thoát nước dưới dạng “nếu”, trừ khi dữ liệu thực sự cung cấp chúng.
+- Chỉ nói mưa đang tăng/giảm khi có các khoảng so sánh tương ứng, đủ bản tin và cùng đơn vị. Tổng mm của một giờ hoàn chỉnh không được so trực tiếp với tổng mm của một giờ mới diễn ra vài phút để kết luận cường độ giảm. Một episode dài không chứng minh mưa to liên tục. Không dùng tổng ngày để nói hiện đang mưa to.
+- Nếu mưa ngưng, chưa thể kết luận hết nguy cơ: nước từ thượng nguồn có thể tiếp tục về và sườn dốc đã ướt vẫn có thể mất ổn định. Độ ẩm không khí từ BME280 không phải độ ẩm đất. Một giá trị khí áp không cho biết xu hướng hoặc xác nhận bão.
+- Viết “Nếu mưa tiếp tục với diễn biến đang ghi nhận, ... có thể ...”. Không khẳng định mưa chắc chắn tiếp tục, giờ lũ đến, độ sâu ngập, xác suất mưa hoặc cấp độ cảnh báo pháp lý khi chưa có nguồn phù hợp. Một trạm không đại diện toàn lưu vực. Chưa có radar, gió, mực nước, độ ẩm đất hoặc dự báo chính thức thì nêu rõ phần thiếu.
+- Khi người dùng nêu giả định cường độ I trong thời lượng Δt, được tính P_bổ_sung = I × Δt. Phút đổi sang giờ bằng cách chia 60. Bắt buộc viết “nếu giữ nguyên tốc độ giả định”; đây là kịch bản tính toán, không phải dự báo khí tượng. Không tự lấy cường độ 5 phút nhân cho cả ngày.
+- Khi phù hợp, gợi ý theo dõi mực nước và bản tin chính thức; tránh đi qua nước ngập hoặc dòng chảy xiết. Không yêu cầu đến sát sông, cống hay sườn dốc để kiểm tra.
+
+2. TÍNH SỐ LẦN GẦU LẬT:
+- Ưu tiên đếm số nhịp thực từ sự kiện đã lưu trong đúng khoảng người dùng hỏi:
+  + totalTipsToday hoặc rainHistory.recordedTips: số nhịp ngày.
+  + rainHistory.hourly: giờ đồng hồ trong ngày trạm.
+  + rainHistory.periods: từng buổi.
+  + rainWindows: 1, 3, 24 giờ trượt.
+- Phân biệt giờ đồng hồ 14:00–15:00 với 60 phút vừa qua. Nêu múi giờ, khoảng tính và thời điểm chốt. Ngày khác hoặc khoảng chưa có dữ liệu thì nói thiếu, không thay bằng hôm nay. Khoảng chưa đến không phải 0 nhịp. Dữ liệu thiếu chỉ cho biết phần đã ghi nhận.
+- Nếu chỉ có lượng mưa P (mm), dùng N_tương_đương = P / k với k (mm/tip) không đổi và lớn hơn 0. Hệ số người dùng cung cấp chỉ là giả định bài tính, không thay đổi cấu hình trạm. Thiếu k thì hỏi k, không mặc định 0.64. P phải không âm.
+- Nếu N không nguyên, giữ kết quả tương đương và nêu số làm tròn riêng; không khẳng định đó là số nhịp thực. Nếu hệ số thay đổi, cộng nhịp từng sự kiện hoặc tính từng đoạn theo hệ số tương ứng; không chia toàn bộ lượng mưa lịch sử cho hệ số hiện tại. Chỉ có tổng mm và thiếu lịch sử hiệu chuẩn thì không xác định chắc chắn số nhịp thực.
+- Nếu đầu vào là mm/h, cần thời lượng: P = I × Δt, rồi N_tương_đương = P / k. Không tự giả định thời lượng 1 giờ. Có thể đổi ngược P = N × k với N nguyên không âm.
+
+3. CÁCH VIẾT:
+- Trả lời tiếng Việt tự nhiên bằng 1–3 đoạn ngắn, nêu bằng chứng trước rồi nhận định có điều kiện. Không tự dựng số liệu. Tình huống do người dùng mô tả phải được ghi rõ nguồn: “Theo tình huống bạn mô tả...”. Các ví dụ dưới đây là giả định, không phải số đo hiện tại:
+  + Ví dụ A: “Mưa lớn kéo dài thì sắp tới thế nào?”
+    “Nếu mưa tiếp tục, lượng nước tích lũy có thể tăng và gây áp lực thoát nước; nơi thoát kém có thể ngập cục bộ. Tại lưu vực dốc hoặc đất đã bão hòa, nguy cơ lũ quét và sạt lở có thể tăng. Trạm chưa có dữ liệu mực nước, địa hình và độ ẩm đất để xác nhận các điều kiện đó; đây là kịch bản có điều kiện, chưa xác định mưa sẽ kéo dài bao lâu.”
+  + Ví dụ B: “Giờ này đo 12.8 mm, k=0.64 mm/tip thì bao nhiêu lần?”
+    “Theo số liệu bạn cung cấp, N = 12.8 / 0.64 = 20 lần tương đương, giả sử hệ số không đổi. Số nhịp thực cần đối chiếu sự kiện được lưu trong đúng giờ đó.”
+  + Ví dụ C: “Ngày đo 32 mm, k=0.64 mm/tip?”
+    “N_tương_đương = 32 / 0.64 = 50 lần. Nếu hệ số đã đổi trong ngày, cần đếm nhịp sự kiện thay vì suy ngược bằng hệ số hiện tại.”
+  + Ví dụ D: “10 mm, k=0.64 mm/tip?”
+    “10 / 0.64 = 15.625 lần tương đương; khoảng 16 lần nếu làm tròn. Chưa thể xác nhận số nhịp thực từ phép chia này.”
+  + Ví dụ E: “Nếu 12.8 mm/h trong 30 phút, k=0.64?”
+    “Nếu giữ nguyên tốc độ giả định trong 0.5 giờ, lượng mưa bổ sung là 12.8 × 0.5 = 6.4 mm, tương đương 6.4 / 0.64 = 10 lần. Đây là kịch bản tính toán, không phải dự báo mưa.”
+
 QUY TẮC TRÌNH BÀY:
 - Trả lời thẳng câu hỏi, thông thường 1–3 đoạn ngắn, khoảng 80–180 từ; không in bảng, tiêu đề in đậm, LaTeX hoặc emoji hàng loạt nếu người dùng không yêu cầu.
 - Khi người dùng hỏi về công thức, thông số hoặc sơ đồ mạch: Luôn đặt công thức tính trong khối mã (\`\`\`) hoặc danh sách thụt lề rõ ràng, tách bạch từng dòng, in đậm các biến số để dễ nhìn trực quan.
@@ -177,6 +219,95 @@ export function generateRainSenseReply(query: string, c: StationContext, history
     : c.currentRainRateMmH > 0 ? `trạm ghi nhận ${rainLabel}, cường độ theo cửa sổ 5 phút là ${value(c.currentRainRateMmH, 'mm/h')}.`
     : 'chưa ghi nhận nhịp lật mới trong cửa sổ 5 phút của bản ghi; chưa thể khẳng định đã tạnh hoàn toàn.';
   const has = (pattern: RegExp) => pattern.test(q);
+
+  // 0A. Hỏi ngày chưa có trong context (ngày mai, hôm kia, tuần trước...)
+  if (has(/ngày mai|hôm kia|ngày kia|tuần trước|tháng trước|năm ngoái/) && has(/gầu|nhịp|lần|lật|tip|mưa/)) {
+    return 'Trạm RainSense hiện chỉ lưu trữ dữ liệu của hôm nay và hôm qua trong bộ nhớ; chưa có dữ liệu quan trắc của ngày bạn hỏi để tính số nhịp gầu lật.';
+  }
+
+  // 0B. Hệ số hiệu chuẩn thay đổi giữa ngày
+  if (has(/hệ số.*(đổi|thay đổi)|(đổi|thay đổi).*hệ số/)) {
+    return 'Nếu hệ số hiệu chuẩn thay đổi trong ngày, cần cộng nhịp từng sự kiện hoặc tính từng đoạn theo hệ số tương ứng; không chia toàn bộ lượng mưa lịch sử cho hệ số hiện tại. Chỉ có tổng mm và thiếu lịch sử hiệu chuẩn thì không xác định chắc chắn số nhịp thực.';
+  }
+
+  // 0C. BME280 Độ ẩm không khí vs Độ ẩm đất / Bão hòa đất
+  if (has(/độ ẩm.*(đất|bão hòa)|bão hòa.*(đất|độ ẩm)|bme280.*độ ẩm đất/)) {
+    return 'Độ ẩm không khí từ cảm biến BME280 không phải là độ ẩm đất; độ ẩm không khí cao không đồng nghĩa đất đã bão hòa. Trạm RainSense chưa có cảm biến đo độ ẩm đất, cấu trúc địa mạo hay mực nước ngầm để xác nhận điều kiện bão hòa.';
+  }
+
+  // 0D. Mưa ngưng, cường độ = 0 thì hết nguy cơ chưa
+  if (has(/(mưa ngưng|tạnh|cường độ.*0).*hết nguy cơ|nguy cơ.*(khi|sau khi).*(mưa ngưng|tạnh)|mưa ngưng.*nguy cơ/)) {
+    return 'Nếu mưa ngưng hoặc cường độ tức thời bằng 0, chưa thể kết luận hết nguy cơ: nước từ thượng nguồn có thể tiếp tục đổ về gây ngập hoặc lũ muộn, và sườn dốc đã ngấm no nước vẫn có thể mất ổn định dẫn đến sạt lở. Cần tiếp tục theo dõi diễn biến dòng chảy và bản tin khí tượng thủy văn chính thức.';
+  }
+
+  // 0E. Telemetry thiếu, giờ hiện tại chưa đủ
+  if (has(/(thiếu telemetry|telemetry thiếu|chưa đủ telemetry|giờ hiện tại chưa đủ|dữ liệu gián đoạn).*(xu hướng|số nhịp|nhịp lật|gầu)/)) {
+    return 'Khi telemetry bị thiếu hoặc giờ quan trắc hiện tại chưa đủ trọn vẹn, không thể khẳng định chắc chắn xu hướng mưa đang tăng hay giảm, cũng như chưa xác định đủ số nhịp gầu lật. Dữ liệu ghi nhận chỉ cho biết phần đã thu thập được tại trạm.';
+  }
+
+  // 0F. Mưa lớn kéo dài, lượng mưa giờ tăng / Thiên tai (ngập úng, lũ quét, sạt lở)
+  if (has(/(mưa lớn kéo dài|mưa kéo dài|lượng mưa giờ tăng|áp lực thoát nước|lũ quét|sạt lở|ngập cục bộ|nguy cơ.*thiên tai).*(sắp tới|thế nào|ảnh hưởng|sao)|mưa lớn kéo dài thì sắp tới thế nào|sắp tới thế nào.*mưa/)) {
+    return 'Nếu mưa tiếp tục, lượng nước tích lũy có thể tăng và gây áp lực thoát nước; nơi thoát kém có thể ngập cục bộ. Tại lưu vực dốc hoặc đất đã bão hòa, nguy cơ lũ quét và sạt lở có thể tăng. Trạm chưa có dữ liệu mực nước, địa hình và độ ẩm đất để xác nhận các điều kiện đó; đây là kịch bản có điều kiện, chưa xác định mưa sẽ kéo dài bao lâu.';
+  }
+
+  // 0G. Bài toán giả định với cường độ mưa (mm/h) và thời lượng
+  const rateMatch = q.match(/(\d+(?:\.\d+)?)\s*mm\s*\/\s*(?:h|giờ)/);
+  if (rateMatch && (has(/lần|nhịp|gầu|tip|tương đương|bao nhiêu|bổ sung/) || has(/trong\s+\d+/))) {
+    const I = parseFloat(rateMatch[1]);
+    const minMatch = q.match(/(?:trong\s+)?(\d+(?:\.\d+)?)\s*(?:phút|mins?|p\b)/);
+    const hourMatch = q.match(/(?:trong\s+)?(\d+(?:\.\d+)?)\s*(?:giờ|tiếng|h\b)(?!\s*[\/])/);
+
+    if (!minMatch && !hourMatch) {
+      return 'Cần cung cấp thêm thời lượng mưa (ví dụ: số phút hoặc số giờ) để tính lượng mưa tích lũy P = I × Δt trước khi quy đổi ra số nhịp gầu lật. Đơn vị cường độ mm/h là tốc độ tức thời, không thể dùng trực tiếp thay cho lượng mưa mm.';
+    }
+
+    const durationHours = minMatch ? parseFloat(minMatch[1]) / 60 : parseFloat(hourMatch![1]);
+    const kMatch = q.match(/k\s*[:=]\s*(-?\d+(?:\.\d+)?)|(-?\d+(?:\.\d+)?)\s*mm\s*\/\s*tip|hệ số(?:\s*hiệu chuẩn)?\s*(?:là|bằng|=|:)?\s*(-?\d+(?:\.\d+)?)/);
+    const rawK = kMatch ? (kMatch[1] ?? kMatch[2] ?? kMatch[3]) : null;
+    const kVal = rawK !== null ? parseFloat(rawK) : null;
+
+    if (kVal !== null && kVal <= 0) {
+      return 'Hệ số hiệu chuẩn k phải là một số dương lớn hơn 0 (k > 0) để tính số lần gầu lật.';
+    }
+    if (kVal === null) {
+      return 'Cần cung cấp hệ số hiệu chuẩn k (mm/tip) lớn hơn 0 để tính số nhịp gầu lật tương đương.';
+    }
+
+    const P = Math.round(I * durationHours * 1000) / 1000;
+    const N = Math.round((P / kVal) * 1000) / 1000;
+    const durStr = durationHours.toString();
+    return `Nếu giữ nguyên tốc độ giả định trong ${durStr} giờ, lượng mưa bổ sung là ${I} × ${durStr} = ${P} mm, tương đương ${P} / ${kVal} = ${N} lần. Đây là kịch bản tính toán, không phải dự báo mưa.`;
+  }
+
+  // 0H. Bài toán tính số lần gầu lật từ lượng mưa P (mm)
+  const pMatch = q.match(/(\d+(?:\.\d+)?)\s*mm(?!\s*\/\s*(?:h|giờ))/);
+  const kMatch = q.match(/k\s*[:=]\s*(-?\d+(?:\.\d+)?)|(-?\d+(?:\.\d+)?)\s*mm\s*\/\s*tip|hệ số(?:\s*hiệu chuẩn)?\s*(?:là|bằng|=|:)?\s*(-?\d+(?:\.\d+)?)/);
+  if (pMatch && (has(/lần|nhịp|gầu|tip|tương đương|bao nhiêu|mấy/) || kMatch)) {
+    const P = parseFloat(pMatch[1]);
+    const rawK = kMatch ? (kMatch[1] ?? kMatch[2] ?? kMatch[3]) : null;
+    const kVal = rawK !== null ? parseFloat(rawK) : null;
+
+    if (kVal !== null && kVal <= 0) {
+      return 'Hệ số hiệu chuẩn k phải là một số dương lớn hơn 0 (k > 0) để tính số lần gầu lật.';
+    }
+
+    if (kVal !== null) {
+      const N = P / kVal;
+      const isInteger = Math.abs(N - Math.round(N)) < 1e-5;
+      if (isInteger) {
+        const nInt = Math.round(N);
+        if (has(/ngày/)) {
+          return `N_tương_đương = ${P} / ${kVal} = ${nInt} lần. Nếu hệ số đã đổi trong ngày, cần đếm nhịp sự kiện thay vì suy ngược bằng hệ số hiện tại.`;
+        }
+        return `Theo số liệu bạn cung cấp, N = ${P} / ${kVal} = ${nInt} lần tương đương, giả sử hệ số không đổi. Số nhịp thực cần đối chiếu sự kiện được lưu trong đúng giờ đó.`;
+      } else {
+        const roundedN = Math.round(N);
+        return `${P} / ${kVal} = ${parseFloat(N.toFixed(4))} lần tương đương; khoảng ${roundedN} lần nếu làm tròn. Chưa thể xác nhận số nhịp thực từ phép chia này.`;
+      }
+    } else if (!has(/hôm nay|hôm qua|hiện tại|trạm/)) {
+      return 'Cần cung cấp hệ số hiệu chuẩn k (mm/tip) lớn hơn 0 để tính số lần gầu lật tương đương (N = P / k); trạm không tự giả định hệ số cho các bài tính toán tùy ý.';
+    }
+  }
 
   // 1. Dự báo thời tiết, khi nào mưa, xác suất mưa, chiều mai mưa mấy giờ
   if (has(/(mai|sắp|tiếp|lát|chiều|tối).*(chắc|dự báo|bao giờ|mấy giờ|có mưa|mưa không)|dự báo|xác suất|khi nào.*mưa/)) {
@@ -290,7 +421,7 @@ Nước mưa rơi vào phễu chuẩn hứng chảy xuống gầu bập bênh. K
   ) {
     return `Thống kê số lần lật gầu tại trạm ${c.stationName} (${c.deviceId}):
 
-• **Số nhịp lật hôm nay (từ 00:00):** **${c.totalTipsToday ?? 0} nhịp lật (tips)**
+• **Số nhịp lật hôm nay (từ 00:00, múi giờ ${c.timezone}):** **${c.totalTipsToday ?? 0} nhịp lật (tips)**
 • **Lượng mưa tích lũy hôm nay:** **${value(c.todayRainMm, 'mm', 2)}**
 • **Hệ số hiệu chuẩn hiện tại:** **${cal} mm/tip**
 ${typeof c.yesterdayRainMm === 'number' ? `• **Ngày hôm qua:** ${c.yesterdayRainMm.toFixed(2)} mm (${c.yesterdayTips ?? Math.round(c.yesterdayRainMm / cal)} nhịp lật)` : ''}
