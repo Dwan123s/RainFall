@@ -21,7 +21,7 @@ export function forecastWindow(query: string, timezone: string, now: Date) {
   let to = from + 6 * HOUR;
   const tomorrow = /mai/.test(q);
   const dayAfter = /ngay kia/.test(q);
-  const part = /buoi sang|sang mai|sang ngay/.test(q) ? [6, 12] : /chieu/.test(q) ? [12, 18] : /toi nay|toi mai|buoi toi|toi ngay/.test(q) ? [18, 24] : null;
+  const part = /\bsang\b/.test(q) ? [6, 12] : /chieu/.test(q) ? [12, 18] : /toi nay|toi mai|buoi toi|toi ngay/.test(q) ? [18, 24] : null;
   if (tomorrow || dayAfter || /hom nay|toi nay/.test(q) || part) {
     const day = start + (dayAfter ? 48 : tomorrow ? 24 : 0) * HOUR;
     from = Math.max(now.getTime(), day + (part?.[0] ?? 0) * HOUR);

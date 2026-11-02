@@ -78,7 +78,8 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
     enabled: isOpen
   });
   const latestMetadata = [...messages].reverse().find((m) => m.metadata)?.metadata;
-  const modeLabel = latestMetadata?.mode === 'llm' ? 'AI kết nối' : latestMetadata?.mode === 'calculation' ? 'Tính toán' : latestMetadata?.mode === 'forecast' ? 'Nguồn dự báo' : latestMetadata?.mode === 'fallback' ? 'Dự phòng' : 'Sẵn sàng';
+  const localKnowledgeOnly = latestMetadata?.mode === 'fallback' || !latestMetadata && contextData?.capabilities?.languageModelConfigured === false;
+  const modeLabel = latestMetadata?.mode === 'llm' ? 'AI kết nối' : latestMetadata?.mode === 'calculation' ? 'Tính toán' : latestMetadata?.mode === 'forecast' ? 'Nguồn dự báo' : latestMetadata?.mode === 'fallback' ? 'Dự phòng' : localKnowledgeOnly ? 'Kiến thức dự án' : 'Sẵn sàng';
   const observedAge = contextData?.observedAt ? Date.now() - Date.parse(contextData.observedAt) : NaN;
   const fresh = contextData?.dataQuality?.fresh ?? (contextData?.isOnline && Number.isFinite(observedAge) && observedAge >= -60000 && observedAge <= 300000);
 
@@ -237,8 +238,8 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
                     <span>RainSense AI</span>
                     <Sparkles className="w-3.5 h-3.5 text-cyan-500 fill-cyan-500" />
                   </h3>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono border flex items-center gap-1 ${latestMetadata?.mode === 'fallback' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${latestMetadata?.mode === 'fallback' ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`} />
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono border flex items-center gap-1 ${localKnowledgeOnly ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${localKnowledgeOnly ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`} />
                     <span>{modeLabel}</span>
                   </span>
                 </div>

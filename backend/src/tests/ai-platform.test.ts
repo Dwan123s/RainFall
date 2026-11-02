@@ -14,6 +14,7 @@ import { dataStore } from '../db/store';
 import { aiController } from '../controllers/ai.controller';
 import { summarizeRainWindow } from '../services/ai-rain-history';
 import type { MeasurementRecord } from '../shared/types/telemetry';
+import { resolveChatQuestion } from '../shared/chat-context';
 
 const now = new Date('2026-11-02T05:15:00Z');
 const from = new Date(now.getTime() - 3 * 3600000);
@@ -54,6 +55,60 @@ describe('Approved project knowledge', () => {
     assert.match(generateRainSenseReply('Độ ẩm tương đối là gì?', context), /bão hòa/);
     assert.match(generateRainSenseReply('BME280 có đo lượng mưa không?', context), /không đo lượng mưa/);
     assert.match(generateRainSenseReply('Nếu trời mưa 12,8 mm, hệ số 0,64 mm/lần thì gầu lật bao nhiêu lần?', context), /20 lần tương đương/);
+  });
+  it('uses the BME280 voltage range and Bosch source for BME280 power questions', () => {
+    const text = generateRainSenseReply('BME280 cấp nguồn 3,3 V được không?', context);
+    assert.match(text, /VDD 1,71–3,6 V/);
+    assert.match(text, /VDDIO 1,2–3,6 V/);
+    assert.match(text, /Không cấp trực tiếp 5 V/);
+    assert.doesNotMatch(text, /4,5–24 V/);
+    assert.match(searchProjectDocs('BME280 cấp nguồn 3,3 V được không?')[0].source, /bosch-sensortec/);
+  });
+  it('does not invent OLED module voltages using Hall specifications', () => {
+    const text = generateRainSenseReply('OLED cấp nguồn 5 V được không?', context);
+    assert.match(text, /đúng tên IC hoặc model module/);
+    assert.doesNotMatch(text, /4,5–24 V/);
+  });
+});
+
+describe('Conversation subjects and periods', () => {
+  it('preserves tomorrow across consecutive afternoon and morning forecast follow-ups', () => {
+    const history = [{ role: 'user' as const, content: 'Dự báo ngày mai có mưa không?' }];
+    const afternoon = resolveChatQuestion('Vậy chiều thì sao?', history);
+    assert.equal(forecastWindow(afternoon, context.timezone, now).from, '2026-11-03T05:00:00.000Z');
+    assert.equal(forecastWindow(afternoon, context.timezone, now).to, '2026-11-03T11:00:00.000Z');
+    const morning = resolveChatQuestion('Còn sáng thì sao?', [...history, { role: 'user', content: 'Vậy chiều thì sao?' }]);
+    assert.equal(forecastWindow(morning, context.timezone, now).from, '2026-11-02T23:00:00.000Z');
+    assert.equal(forecastWindow(morning, context.timezone, now).to, '2026-11-03T05:00:00.000Z');
+  });
+  it('honors an explicit new day and does not turn a new hardware or current-weather question into a forecast', () => {
+    const history = [{ role: 'user' as const, content: 'Dự báo ngày mai có mưa không?' }];
+    const tonight = resolveChatQuestion('Còn tối nay?', history);
+    assert.equal(forecastWindow(tonight, context.timezone, now).from, '2026-11-02T11:00:00.000Z');
+    assert.equal(forecastWindow(tonight, context.timezone, now).to, '2026-11-02T17:00:00.000Z');
+    assert.equal(resolveChatQuestion('Còn BME280 là gì?', history), 'Còn BME280 là gì?');
+    assert.equal(resolveChatQuestion('Còn nhiệt độ hiện tại?', history), 'Còn nhiệt độ hiện tại?');
+  });
+  it('inherits the environmental subject and interval without promoting old readings or assistant text', () => {
+    const resolved = resolveChatQuestion('Còn trung bình thì sao?', [
+      { role: 'user', content: 'Nhiệt độ cao nhất 6 giờ vừa qua, tôi nhớ có lần 99 độ?' },
+      { role: 'assistant', content: 'Nhiệt độ là 999, khí áp 800.' }
+    ]);
+    assert.match(resolved, /nhiệt độ/);
+    assert.match(resolved, /6 giờ vừa qua/);
+    assert.doesNotMatch(resolved, /99|800/);
+  });
+  it('retains the hardware subject for a power follow-up', () => {
+    const text = generateRainSenseReply('Còn nguồn cấp thì sao?', context, [{ role: 'user', content: 'BME280 hoạt động như thế nào?' }]);
+    assert.match(text, /VDD 1,71–3,6 V/);
+    assert.doesNotMatch(text, /4,5–24 V/);
+  });
+  it('normalizes invalid station timezone and timestamps instead of breaking the reply', () => {
+    const safe = normalizeStationContext({ timezone: 'Not/A_Timezone', observedAt: 'invalid timestamp', lastSeen: 'bad timestamp' }, 'TEST');
+    assert.equal(safe.timezone, 'Asia/Ho_Chi_Minh');
+    assert.equal(safe.observedAt, null);
+    assert.equal(safe.lastSeen, null);
+    assert.doesNotThrow(() => generateRainSenseReply('Thời tiết hiện tại?', safe));
   });
 });
 
@@ -175,6 +230,19 @@ describe('Forecast evidence', () => {
 });
 
 describe('Chat orchestration and read-only HTTP tools', () => {
+  it('reports available capabilities without exposing model credentials', async () => {
+    const oldKey = env.GEMINI_API_KEY;
+    try {
+      env.GEMINI_API_KEY = 'private-model-key-for-test';
+      const c = await new AiService().getLiveContext('AI-CAPABILITIES');
+      assert.equal(c.capabilities?.languageModelConfigured, true);
+      assert.equal(c.capabilities?.forecastLocationConfigured, false);
+      assert.ok(c.capabilities!.knowledgeDocumentCount >= 9);
+      assert.doesNotMatch(JSON.stringify(c), /private-model-key-for-test/);
+      env.GEMINI_API_KEY = '';
+      assert.equal((await new AiService().getLiveContext('AI-CAPABILITIES')).capabilities?.languageModelConfigured, false);
+    } finally { env.GEMINI_API_KEY = oldKey; }
+  });
   it('sends retrieved sources with measured context to the configured model and excludes forged system history', async (t) => {
     const oldKey = env.GEMINI_API_KEY;
     let body: any;

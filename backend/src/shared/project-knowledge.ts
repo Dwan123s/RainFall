@@ -5,6 +5,17 @@ import type { StationContext } from './rainsense-ai';
 export const foldText = (text: string) => text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
 const stop = new Set('la gi cua va cho thi co khong duoc nhu nao mot nhung cac voi trong toi ban hay the ve nay tai sao bao nhieu'.split(' '));
 export type KnowledgeChunk = (typeof KNOWLEDGE_CHUNKS)[number];
+export const knowledgeDocumentCount = () => new Set(KNOWLEDGE_CHUNKS.map((d) => d.documentId)).size;
+
+function electricalIntent(q: string) {
+  const power = /nguon|dien ap|\bvdd(?:io)?\b|\b(?:3[.,]3|5)\s*v\b|\bcap\s+(?:dien|nguon)/.test(q);
+  if (power) {
+    const bme = /bme280/.test(q);
+    const hall = /a3144|hall/.test(q);
+    return bme && !hall ? 'bme-power' : hall && !bme ? 'hall-power' : 'unknown-power';
+  }
+  return /dau noi|noi chan|so do|\bgpio\b|\bsda\b|\bscl\b/.test(q) ? 'pinout' : null;
+}
 export function knowledgeSource(chunk: KnowledgeChunk): KnowledgeSource {
   return { id: chunk.id, title: chunk.title, version: chunk.version, path: chunk.path, url: chunk.source };
 }
@@ -30,8 +41,10 @@ export function searchProjectDocs(query: string, variant: HardwareVariant = 'unk
     }, 0);
     if (/bme280/.test(q) && /do.*mua|la gi/.test(q) && d.id === 'hardware-bom-0') score += 20;
     if (/gau.*lat/.test(q) && /hoat dong|nguyen ly|nam cham/.test(q) && d.id === 'hardware-bom-1') score += 20;
-    if (wiring && d.id === 'wiring-cautions-0') score += 20;
-    if (/a3144|hall/.test(q) && /nguon|cap|dien ap|[35][.,]?\d?\s*v/.test(q) && d.id === 'wiring-cautions-1') score += 30;
+    const electrical = electricalIntent(q);
+    if (electrical === 'pinout' && d.id === 'wiring-cautions-0') score += 30;
+    if (electrical === 'hall-power' && d.id === 'wiring-cautions-1') score += 30;
+    if (electrical === 'bme-power' && d.documentId === 'bme280-power') score += 40;
     return { d, score };
   }).filter((p) => p.score > 0).sort((a, b) => b.score - a.score || a.d.id.localeCompare(b.d.id))
     .filter((p, _, all) => p.score >= all[0].score * 0.35).slice(0, Math.max(1, Math.min(limit, 5))).map((p) => p.d);
@@ -47,10 +60,13 @@ export function getProjectKnowledgeReply(query: string, context: StationContext)
   if (/gau|mua/.test(q) && /ngung|ngun|nghi|mua lai|sang|chieu|hom nay|reset|ve 0|khong tang/.test(q) && !/nguyen ly|hoat dong/.test(q)) return null;
   if (/du bao|ngay mai|chieu mai/.test(q) && !explanation) return null;
   let chunks = searchProjectDocs(query, context.profile?.hardwareVariant);
-  if (/dau noi|noi chan|so do|gpio|sda|scl|cap.*(?:nguon|v)|3[.,]3\s*v/.test(q)) {
-    chunks = KNOWLEDGE_CHUNKS.filter((d) => d.documentId === 'wiring-cautions').slice(/a3144|hall|cap|nguon|3[.,]3/.test(q) ? 1 : 0, /a3144|hall|cap|nguon|3[.,]3/.test(q) ? 2 : 1);
+  const electrical = electricalIntent(q);
+  if (electrical === 'bme-power') return KNOWLEDGE_CHUNKS.find((d) => d.documentId === 'bme280-power')?.text ?? null;
+  if (electrical === 'unknown-power') return 'Cần xác định đúng tên IC hoặc model module và chân cấp nguồn đang hỏi. Điện áp VIN của module có bộ ổn áp có thể khác điện áp của IC; không dùng dải nguồn của Hall A3144 cho BME280, OLED hoặc ESP32-S3. Hãy đối chiếu sơ đồ của đúng module trước khi cấp điện.';
+  if (electrical === 'pinout' || electrical === 'hall-power') {
+    chunks = KNOWLEDGE_CHUNKS.filter((d) => electrical === 'hall-power' ? d.id === 'wiring-cautions-1' : d.id === 'wiring-cautions-0');
     const verified = context.profile?.wiringVerified === true && context.profile.hardwareVariant === 'oled-s3';
-    const power = /a3144|hall|cap|nguon|3[.,]3/.test(q);
+    const power = electrical === 'hall-power';
     const prefix = power ? 'Cần xác định đúng IC rời hoặc module đang lắp. ' : verified ? 'Theo hồ sơ trạm đã xác minh: bản OLED dùng SDA8, SCL9 và Hall10. ' : 'Chưa xác minh đấu nối thực tế của trạm; các chân dưới đây chỉ mô tả mã trong repository. ';
     return prefix + chunks.map((d) => d.text).join('\n\n');
   }

@@ -6,10 +6,11 @@ import { calculateDewPoint, calculateHeatIndex, getStartOfDayInTimezone } from '
 import { withReadDiagnostics } from '../db/read-diagnostics';
 import { calculateWeatherFeatures, describePressureTrend } from './ai-weather-features';
 import { forecastService, forecastReply, isForecastQuery } from './ai-forecast.service';
-import { searchProjectDocs, knowledgeSource } from '../shared/project-knowledge';
+import { searchProjectDocs, knowledgeSource, knowledgeDocumentCount } from '../shared/project-knowledge';
+import { resolveChatQuestion } from '../shared/chat-context';
 import type { ChatMetadata } from '../shared/ai-types';
 import {
-  buildRainSensePrompt, cleanChatHistory, generateRainSenseReply, getBucketCalculationReply, normalizeStationContext,
+  buildRainSensePrompt, cleanChatHistory, generateRainSenseReply, getBucketCalculationReply, normalizeStationContext, normalizeStationTimezone,
   type ChatTurn, type StationContext
 } from '../shared/rainsense-ai';
 
@@ -29,7 +30,8 @@ export class AiService {
       dataStore.getDevice(deviceId), dataStore.getLatestMeasurement(deviceId),
       dataStore.getConfig(deviceId), dataStore.getAlerts({ deviceId, limit: 3 })
     ]);
-    const timezone = device?.timezone || env.DEFAULT_TIMEZONE;
+    const timezone = normalizeStationTimezone(device?.timezone || env.DEFAULT_TIMEZONE);
+    const profile = env.AI_STATION_PROFILES[deviceId] ?? { hardwareVariant: 'unknown' as const, wiringVerified: false };
     const start = getStartOfDayInTimezone(now, timezone);
     const rolling24hStart = now.getTime() - 24 * 3600000;
     const from = new Date(Math.min(start.getTime() - 300000, rolling24hStart));
@@ -63,7 +65,10 @@ export class AiService {
       calibrationFactor: config?.rainMmPerTip ?? null,
       pressureTrend: describePressureTrend(features),
       weatherFeatures: features,
-      profile: env.AI_STATION_PROFILES[deviceId] ?? { hardwareVariant: 'unknown', wiringVerified: false },
+      profile,
+      capabilities: { languageModelConfigured: Boolean(env.GEMINI_API_KEY), forecastEnabled: env.AI_FORECAST_ENABLED,
+        forecastLocationConfigured: profile.latitude !== undefined && profile.longitude !== undefined,
+        knowledgeDocumentCount: knowledgeDocumentCount() },
       dataQuality: { source: 'unknown', generatedAt: now.toISOString(), demo: env.DEMO_MODE,
         fresh: device?.isOnline === true && Number.isFinite(age) && age >= -60000 && age <= 300000 && temp !== null && humid !== null && press !== null,
         historyTruncated: measurements.length >= 20000 },
@@ -87,8 +92,7 @@ export class AiService {
   async chat(userMessage: string, history: ChatMessage[] = [], deviceId = env.DEFAULT_STATION_ID): Promise<ChatResult> {
     const context = await this.getLiveContext(deviceId);
     const validHistory = cleanChatHistory(history);
-    const previousQuestion = validHistory.filter((m) => m.role === 'user').at(-1)?.content ?? '';
-    const searchQuery = /^(vậy|thế|còn|nếu vậy|thì)/i.test(userMessage) ? `${previousQuestion}\n${userMessage}` : userMessage;
+    const searchQuery = resolveChatQuestion(userMessage, validHistory);
     const docs = searchProjectDocs(searchQuery, context.profile?.hardwareVariant);
     const finish = (reply: string, mode: ChatMetadata['mode'], model: string | null = null, fallbackReason?: ChatMetadata['fallbackReason']): ChatResult => {
       const notices: string[] = [];
@@ -98,19 +102,18 @@ export class AiService {
         metadata: { mode, provider: mode === 'llm' ? 'gemini' : mode === 'forecast' ? 'open-meteo' : 'local', model,
           generatedAt: new Date().toISOString(), fallbackReason, sources: mode === 'calculation' ? [] : docs.map(knowledgeSource) } };
     };
-    const calculation = getBucketCalculationReply(userMessage, context);
+    const calculation = getBucketCalculationReply(searchQuery, context);
     if (calculation) return finish(calculation, 'calculation');
-    if (isForecastQuery(userMessage) || /^(vậy|thế|còn)/i.test(userMessage) && isForecastQuery(previousQuestion)) {
-      // The current question supplies the period; previous text is only used to resolve the topic.
-      context.forecast = await forecastService.getForecast(userMessage, context.profile!, context.timezone);
+    if (isForecastQuery(searchQuery)) {
+      context.forecast = await forecastService.getForecast(searchQuery, context.profile!, context.timezone);
       const result = finish(forecastReply(context.forecast, context), 'forecast');
       result.metadata.sources = [{ id: 'open-meteo', title: 'Open-Meteo — dự báo theo tọa độ', version: 'hourly', path: 'https://open-meteo.com/en/docs', url: 'https://open-meteo.com/en/docs' }];
       return result;
     }
     const environmentQuestion = /nhiệt độ|độ ẩm|khí áp|áp suất/i.test(searchQuery);
-    const requestedHours = userMessage.match(/(\d+)\s*giờ\s*(?:qua|vừa qua|gần nhất)/i);
-    if (environmentQuestion && (requestedHours || /hôm qua/i.test(userMessage))) {
-      const end = /hôm qua/i.test(userMessage) ? getStartOfDayInTimezone(new Date(), context.timezone) : new Date();
+    const requestedHours = searchQuery.match(/(\d+)\s*giờ\s*(?:qua|vừa qua|gần nhất)/i);
+    if (environmentQuestion && (requestedHours || /hôm qua/i.test(searchQuery))) {
+      const end = /hôm qua/i.test(searchQuery) ? getStartOfDayInTimezone(new Date(), context.timezone) : new Date();
       const hours = requestedHours ? Number(requestedHours[1]) : 24;
       if (hours < 1 || hours > 168) return finish('Có thể truy vấn chuỗi môi trường từ 1 giờ đến tối đa 7 ngày. Bạn hãy chọn khoảng nằm trong giới hạn này.', 'fallback');
       const series = await this.getMeasurementSeries(deviceId, new Date(end.getTime() - hours * 3600000), end);
@@ -123,7 +126,7 @@ export class AiService {
       const result = await this.callGeminiApi(userMessage, validHistory, context, env.GEMINI_API_KEY, docs);
       if (result) return finish(result.reply, 'llm', result.model);
     }
-    return finish(generateRainSenseReply(userMessage, context, validHistory), 'fallback', null, env.GEMINI_API_KEY ? 'model_unavailable' : 'missing_api_key');
+    return finish(generateRainSenseReply(searchQuery, context), 'fallback', null, env.GEMINI_API_KEY ? 'model_unavailable' : 'missing_api_key');
   }
 
   private async callGeminiApi(message: string, history: ChatMessage[], context: StationContext, apiKey: string, docs: ReturnType<typeof searchProjectDocs>): Promise<{ reply: string; model: string } | null> {

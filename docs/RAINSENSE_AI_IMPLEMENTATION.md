@@ -3,13 +3,14 @@
 ## Đã triển khai
 
 - Express điều phối chat; Next.js chỉ kiểm tra request và proxy. Khóa AI chỉ cần ở backend.
-- Kho kiến thức có 8 tài liệu, chia thành 18 mục; tìm kiếm từ khóa tiếng Việt có chuẩn hóa dấu, giữ nguồn và phiên bản. Đây là RAG cục bộ theo từ khóa, không phải embedding hay mô hình đã fine-tune.
+- Kho kiến thức có 9 tài liệu, chia thành 19 mục; tìm kiếm từ khóa tiếng Việt có chuẩn hóa dấu, giữ nguồn và phiên bản. Đây là RAG cục bộ theo từ khóa, không phải embedding hay mô hình đã fine-tune. Phân biệt riêng nguồn cấp BME280, Hall A3144 và module chưa rõ model.
 - Biên dịch tài liệu vào TypeScript khi dev/test/build; chỉ lấy `status=verified`, không đọc toàn bộ repository hoặc firmware chứa thông tin kết nối vào prompt.
 - Tính gầu lật bằng code trước khi gọi AI, dùng hệ số người dùng nêu hoặc cấu hình trạm; giữ nguyên lịch sử hiệu chuẩn của sự kiện.
 - Tính thống kê môi trường, thay đổi nhiệt độ 1 giờ và khí áp 3 giờ; kiểm tra độ phủ và loại số đo ngoài khoảng hợp lệ. Không coi thiếu chuỗi là ổn định, không gọi khí áp giảm là bão.
 - Context có thời điểm đo, nguồn PostgreSQL/RAM/hỗn hợp, chế độ demo, độ mới và cờ chạm giới hạn lịch sử. Ghi nhận nguồn thực tế của từng request, kể cả khi query DB thất bại rồi đọc RAM.
 - Dự báo Open-Meteo theo tọa độ cấu hình; không cần Gemini cho câu hỏi dự báo. Kiểm tra đơn vị, mốc giờ, giá trị thiếu và thời hạn cache 10 phút; không lấy bản cache quá hạn khi API lỗi.
 - Cửa sổ chat hiển thị chế độ AI/dự phòng/tính toán/dự báo, nguồn tham khảo và cảnh báo dữ liệu cũ. Đổi trạm hoặc làm mới chat sẽ bỏ phản hồi đang chạy của cuộc hỏi cũ.
+- Câu hỏi nối tiếp giữ chủ đề và khoảng thời gian từ các lượt người dùng: “ngày mai” → “vậy chiều thì sao?” vẫn hỏi chiều ngày mai. Chủ đề mới và ngày được nêu rõ luôn ưu tiên; không sao chép số đo cũ trong hội thoại thành dữ liệu hiện tại.
 - Script train thử nghiệm nhiệt độ sau 60 phút từ dữ liệu quan trắc thật, có đánh giá độc lập theo thời gian; chưa tự động đưa mô hình vào chatbot.
 
 Nguồn đối chiếu repository: `Dwan123s/RainFall`, commit GitHub `4d94c0a28b47bcd72b52c4e1afeb3ac964d1a89e`, đọc ngày 02/11/2026. Firmware OLED khai báo SDA8/SCL9/Hall10, 0,64 mm/lần. Repository chưa cung cấp tọa độ trạm hoặc bằng chứng đấu nối thực tế. Vì vậy hồ sơ mặc định chưa xác minh, không tự đổi dây hoặc sửa firmware thiết bị.
@@ -52,6 +53,8 @@ File đầu ra `backend/src/shared/knowledge.generated.ts` cần được giữ 
 - `GET /api/ai/series?deviceId=...&from=ISO&to=ISO`: chuỗi môi trường và thống kê, tối đa 7 ngày, 20.000 bản ghi. Có cờ `historyTruncated`; dữ liệu trả theo thứ tự thời điểm đo. Quyền truy cập kế thừa mô hình dashboard hiện tại: dữ liệu quan trắc công khai, không thêm quyền điều khiển thiết bị cho mô hình.
 
 Response chat có `metadata.mode` (`llm`, `fallback`, `calculation`, `forecast`), `provider`, `model`, `generatedAt`, `fallbackReason` khi có và `sources`. Danh sách nguồn là các tài liệu được cấp cho câu trả lời, không phải bằng chứng mô hình đã sử dụng mọi đoạn.
+
+Context có `capabilities`: trạng thái cấu hình mô hình hội thoại, bật/tắt dự báo, đã có tọa độ hay chưa và số tài liệu đã duyệt. Các cờ này không chứa khóa. Khi chưa cấu hình mô hình hội thoại, giao diện hiển thị “Kiến thức dự án” ngay từ đầu; chatbot vẫn tính toán và tra cứu cục bộ. Không thể tạo khóa Gemini hoặc xác định tọa độ thật chỉ bằng mã nguồn, nên người triển khai cần cung cấp hai cấu hình này để dùng đầy đủ mô hình hội thoại và dự báo theo vị trí.
 
 Câu hỏi thử:
 
@@ -114,3 +117,5 @@ npm run build
 ```
 
 Các bài kiểm thử API AI dùng mô hình giả lập có kiểm soát và dữ liệu tổng hợp chỉ trong fixture. Chúng kiểm tra luồng, tính toán, nguồn, lỗi và giới hạn; không chứng minh chất lượng ngôn ngữ của Gemini thật hoặc độ chính xác dự báo tại trạm thực địa.
+
+GitHub Actions trong `.github/workflows/ci.yml` chạy cùng các bước trên khi push `main`, mở pull request hoặc chạy thủ công. Workflow dùng quyền đọc repository, không dùng khóa production và không tự deploy. Nó cũng kiểm tra file chỉ mục kiến thức đã được cập nhật trong commit. Frontend build tự biên dịch lại kho kiến thức để bản triển khai không dùng tài liệu cũ.

@@ -5,8 +5,8 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const directory = path.join(root, 'docs/knowledge');
 const chunks = [];
-for (const name of readdirSync(directory).filter((n) => /^\d{2}-[a-z-]+\.md$/.test(n)).sort()) {
-  const text = readFileSync(path.join(directory, name), 'utf8');
+for (const name of readdirSync(directory).filter((n) => /^\d{2}-[a-z0-9-]+\.md$/.test(n)).sort()) {
+  const text = readFileSync(path.join(directory, name), 'utf8').replace(/\r\n/g, '\n');
   const match = text.match(/^<!-- (\{[^\r\n]+\}) -->/);
   if (!match) throw new Error(`Missing knowledge metadata: ${name}`);
   const meta = JSON.parse(match[1]);

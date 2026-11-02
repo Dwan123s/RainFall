@@ -1,6 +1,7 @@
 /** Portable chatbot policy and offline responses, shared with the Next.js client/server. */
 import { getBucketCalculationReply, getRainHazardReply } from './rain-assistant';
 import { getProjectKnowledgeReply, getWeatherFeatureReply } from './project-knowledge';
+import { resolveChatQuestion } from './chat-context';
 import type { StationProfile, WeatherFeatures, ForecastContext } from './ai-types';
 export { getBucketCalculationReply } from './rain-assistant';
 export interface ChatTurn {
@@ -63,17 +64,32 @@ export interface StationContext {
     historyTruncated: boolean;
   };
   forecast?: ForecastContext;
+  capabilities?: {
+    languageModelConfigured: boolean;
+    forecastEnabled: boolean;
+    forecastLocationConfigured: boolean;
+    knowledgeDocumentCount: number;
+  };
 }
 
 const numeric = (value: unknown): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null;
 
+export function normalizeStationTimezone(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return 'Asia/Ho_Chi_Minh';
+  try { new Intl.DateTimeFormat('vi-VN', { timeZone: value }); return value; }
+  catch { return 'Asia/Ho_Chi_Minh'; }
+}
+
+const timestamp = (value: unknown): string | null =>
+  typeof value === 'string' && Number.isFinite(Date.parse(value)) ? value : null;
+
 export function normalizeStationContext(input: Partial<StationContext> | null | undefined, deviceId = 'RS-ESP32S3-01'): StationContext {
   const c = input ?? {};
   return {
     deviceId, stationName: c.stationName || `Trạm ${deviceId}`,
-    timezone: c.timezone || 'Asia/Ho_Chi_Minh', isOnline: c.isOnline === true,
-    observedAt: c.observedAt || null, lastSeen: c.lastSeen || null,
+    timezone: normalizeStationTimezone(c.timezone), isOnline: c.isOnline === true,
+    observedAt: timestamp(c.observedAt), lastSeen: timestamp(c.lastSeen),
     currentTemp: numeric(c.currentTemp), currentHumid: numeric(c.currentHumid), currentPress: numeric(c.currentPress),
     dewPoint: numeric(c.dewPoint), heatIndex: numeric(c.heatIndex), todayRainMm: numeric(c.todayRainMm),
     rolling24hRainMm: numeric(c.rolling24hRainMm), currentRainRateMmH: numeric(c.currentRainRateMmH),
@@ -85,7 +101,8 @@ export function normalizeStationContext(input: Partial<StationContext> | null | 
     profile: c.profile,
     weatherFeatures: c.weatherFeatures,
     dataQuality: c.dataQuality,
-    forecast: c.forecast
+    forecast: c.forecast,
+    capabilities: c.capabilities
   };
 }
 
@@ -186,17 +203,14 @@ function time(iso: string | null, timezone: string): string {
 }
 
 export function generateRainSenseReply(query: string, c: StationContext, history: ChatTurn[] = [], now = new Date()): string {
+  query = resolveChatQuestion(query, cleanChatHistory(history));
   const calculation = getBucketCalculationReply(query, c);
   if (calculation) return calculation;
   const features = getWeatherFeatureReply(query, c);
   if (features) return features;
   const knowledge = getProjectKnowledgeReply(query, c);
   if (knowledge) return knowledge;
-  let q = query.toLowerCase().normalize('NFC').trim();
-  if (/^(vậy|thế|còn|nếu vậy|thì)/.test(q) && q.length < 90) {
-    const previous = cleanChatHistory(history).filter((m) => m.role === 'user').pop();
-    if (previous) q = `${previous.content.toLowerCase()} ${q}`;
-  }
+  const q = query.toLowerCase().normalize('NFC').trim();
   const age = c.observedAt ? now.getTime() - Date.parse(c.observedAt) : NaN;
   const fresh = c.isOnline && Number.isFinite(age) && age >= -60000 && age <= 300000;
   const intro = `Theo báo cáo từ trạm ${c.stationName} (${c.deviceId}), cập nhật lúc ${time(c.observedAt, c.timezone)}, `;
