@@ -111,6 +111,7 @@ Artifact có `readyForDeployment=false`; chatbot không tải mô hình này. C�
 ## Kiểm tra
 
 ```powershell
+npm run prisma:generate --workspace=backend
 npm test
 npm run lint
 npm run build
@@ -118,4 +119,4 @@ npm run build
 
 Các bài kiểm thử API AI dùng mô hình giả lập có kiểm soát và dữ liệu tổng hợp chỉ trong fixture. Chúng kiểm tra luồng, tính toán, nguồn, lỗi và giới hạn; không chứng minh chất lượng ngôn ngữ của Gemini thật hoặc độ chính xác dự báo tại trạm thực địa.
 
-GitHub Actions trong `.github/workflows/ci.yml` chạy cùng các bước trên khi push `main`, mở pull request hoặc chạy thủ công. Workflow dùng quyền đọc repository, không dùng khóa production và không tự deploy. Nó cũng kiểm tra file chỉ mục kiến thức đã được cập nhật trong commit. Frontend build tự biên dịch lại kho kiến thức để bản triển khai không dùng tài liệu cũ.
+GitHub Actions trong `.github/workflows/ci.yml` chạy cùng các bước trên khi push `main`, mở pull request hoặc chạy thủ công. Sau `npm ci`, workflow sinh Prisma Client từ schema backend trước khi kiểm tra TypeScript; bước này không kết nối hay thay đổi database. Workflow dùng quyền đọc repository, không dùng khóa production và không tự deploy. Nó cũng kiểm tra file chỉ mục kiến thức đã được cập nhật trong commit. Frontend build tự biên dịch lại kho kiến thức để bản triển khai không dùng tài liệu cũ.

@@ -33,6 +33,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - name: Generate Prisma Client from the backend schema
+        run: npm run prisma:generate --workspace=backend
       - run: npm test
       - name: Verify approved knowledge index is committed
         run: git diff --exit-code -- backend/src/shared/knowledge.generated.ts
