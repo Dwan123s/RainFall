@@ -1,5 +1,6 @@
 import { MeasurementRecord, classifyPressureTrend, calculateDewPoint } from '../shared';
 import { dataStore } from '../db/store';
+import { calculateWeatherFeatures } from './ai-weather-features';
 
 export class MeasurementService {
   /**
@@ -67,25 +68,25 @@ export class MeasurementService {
   async getEnvironmentalSummary(deviceId: string) {
     const now = new Date();
     const past24h = new Date(now.getTime() - 24 * 3600 * 1000);
-    const past3h = new Date(now.getTime() - 3 * 3600 * 1000);
 
     const measurements24h = await dataStore.getMeasurements(deviceId, {
       from: past24h.toISOString(),
-      limit: 1000
+      to: now.toISOString(),
+      limit: 20000
     });
 
     const latest = await dataStore.getLatestMeasurement(deviceId);
 
     if (measurements24h.length === 0 || !latest) {
       return {
-        temperature: { current: null, min: null, max: null, avg: null, diff1h: 0, trend: 'STABLE' },
+        temperature: { current: null, min: null, max: null, avg: null, diff1h: null, trend: 'UNKNOWN' },
         humidity: { current: null, min: null, max: null, avg: null },
         pressure: {
           current: null,
           min: null,
           max: null,
           avg: null,
-          trend: { category: 'STABLE', labelVi: 'Chưa có dữ liệu', rateHPaPer3h: 0 }
+          trend: { category: 'UNKNOWN', labelVi: 'Chưa có dữ liệu', deltaHpa: null }
         },
         dewPoint: { current: null }
       };
@@ -107,16 +108,10 @@ export class MeasurementService {
     const maxPress = Math.max(...pressures);
     const avgPress = Math.round((pressures.reduce((a, b) => a + b, 0) / pressures.length) * 10) / 10;
 
-    // Find 3 hours ago measurement for barometric trend
-    const press3hAgoRecord = measurements24h.find(
-      (m) => new Date(m.timestamp) <= past3h
-    );
-    const pressureTrend = classifyPressureTrend(latest.pressure, press3hAgoRecord?.pressure);
-
-    // Temp trend comparing with 1 hour ago
-    const oneHourAgo = new Date(now.getTime() - 3600 * 1000);
-    const temp1hAgo = measurements24h.find((m) => new Date(m.timestamp) <= oneHourAgo)?.temperature;
-    const tempDiff = temp1hAgo !== undefined ? Math.round((latest.temperature - temp1hAgo) * 10) / 10 : 0;
+    const config = await dataStore.getConfig(deviceId);
+    const features = calculateWeatherFeatures(measurements24h, past24h, now, Math.max(120000, (config?.mqttInterval ?? 30) * 3000));
+    const pressureTrend = classifyPressureTrend(features.pressureDelta3hHpa ?? NaN, 0);
+    const tempDiff = features.temperatureDelta1hC;
 
     return {
       temperature: {
@@ -125,7 +120,7 @@ export class MeasurementService {
         max: maxTemp,
         avg: avgTemp,
         diff1h: tempDiff,
-        trend: tempDiff > 0.3 ? 'RISING' : tempDiff < -0.3 ? 'FALLING' : 'STABLE'
+        trend: tempDiff === null ? 'UNKNOWN' : tempDiff > 0.3 ? 'RISING' : tempDiff < -0.3 ? 'FALLING' : 'STABLE'
       },
       humidity: {
         current: latest.humidity,

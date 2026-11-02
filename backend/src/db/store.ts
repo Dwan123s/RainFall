@@ -11,6 +11,7 @@
 import { getPrismaClient, isDbConnected } from './prisma';
 import { logger } from '../utils/logger';
 import bcrypt from 'bcryptjs';
+import { recordReadSource } from './read-diagnostics';
 
 // In-memory persistent caches for standalone/demo operation or fallback
 class InMemoryStore {
@@ -77,6 +78,7 @@ export const dataStore = {
     if (isDbConnected()) {
       try {
         const d = await getPrismaClient().device.findUnique({ where: { deviceId } });
+        recordReadSource('postgresql');
         if (d) {
           return {
             id: d.id,
@@ -97,6 +99,7 @@ export const dataStore = {
         logger.error({ err }, 'Prisma error getDevice');
       }
     }
+    recordReadSource('memory');
     return memoryStore.devices.get(deviceId) || null;
   },
 
@@ -251,6 +254,7 @@ export const dataStore = {
     if (isDbConnected()) {
       try {
         const c = await getPrismaClient().deviceConfiguration.findUnique({ where: { deviceId } });
+        recordReadSource('postgresql');
         if (c) {
           return {
             id: c.id,
@@ -265,6 +269,7 @@ export const dataStore = {
         logger.error({ err }, 'Prisma error getConfig');
       }
     }
+    recordReadSource('memory');
     return memoryStore.configs.get(deviceId) || null;
   },
 
@@ -415,6 +420,7 @@ export const dataStore = {
           where: { deviceId },
           orderBy: { timestamp: 'desc' }
         });
+        recordReadSource('postgresql');
         if (m) {
           return {
             id: m.id,
@@ -437,12 +443,10 @@ export const dataStore = {
       }
     }
 
-    for (let i = memoryStore.measurements.length - 1; i >= 0; i--) {
-      if (memoryStore.measurements[i].deviceId === deviceId) {
-        return memoryStore.measurements[i];
-      }
-    }
-    return null;
+    recordReadSource('memory');
+    const latestMemory = memoryStore.measurements.filter((m) => m.deviceId === deviceId)
+      .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))[0];
+    return latestMemory || null;
   },
 
   async getMeasurements(
@@ -467,10 +471,11 @@ export const dataStore = {
                 }
               : {})
           },
-          orderBy: { timestamp: 'asc' },
+          orderBy: { timestamp: 'desc' },
           take: limit
         });
-        return list.map((m) => ({
+        recordReadSource('postgresql');
+        return list.reverse().map((m) => ({
           id: m.id,
           deviceId: m.deviceId,
           messageId: m.messageId,
@@ -490,6 +495,7 @@ export const dataStore = {
       }
     }
 
+    recordReadSource('memory');
     const filtered = memoryStore.measurements.filter((m) => {
       if (m.deviceId !== deviceId) return false;
       const t = new Date(m.timestamp).getTime();
@@ -498,7 +504,7 @@ export const dataStore = {
       return true;
     });
 
-    return filtered.slice(-limit);
+    return filtered.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp)).slice(-limit);
   },
 
   // ----------------------------------------------------
@@ -572,6 +578,7 @@ export const dataStore = {
           },
           orderBy: { timestamp: 'asc' }
         });
+        recordReadSource('postgresql');
         return list.map((r) => ({
           id: r.id,
           deviceId: r.deviceId,
@@ -587,6 +594,7 @@ export const dataStore = {
       }
     }
 
+    recordReadSource('memory');
     return memoryStore.rainEvents.filter((r) => {
       if (r.deviceId !== deviceId) return false;
       const t = new Date(r.timestamp).getTime();
@@ -745,6 +753,7 @@ export const dataStore = {
           orderBy: { createdAt: 'desc' },
           take: limit
         });
+        recordReadSource('postgresql');
         return list.map((a) => ({
           id: a.id,
           deviceId: a.deviceId,
@@ -760,6 +769,7 @@ export const dataStore = {
       }
     }
 
+    recordReadSource('memory');
     return memoryStore.alerts
       .filter((a) => {
         if (filter?.deviceId && a.deviceId !== filter.deviceId) return false;

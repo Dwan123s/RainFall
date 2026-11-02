@@ -1,140 +1,35 @@
 import { NextResponse } from 'next/server';
-import {
-  buildRainSensePrompt,
-  generateRainSenseReply,
-  cleanChatHistory,
-  normalizeStationContext,
-  cleanLatexArtifacts,
-  StationContext,
-  ChatTurn
-} from '../../../../lib/rainsense-ai';
+import { getAiBackendBase } from '@/lib/ai-context.server';
+import { cleanChatHistory } from '@/lib/rainsense-ai';
+import { chatRequestSchema } from '../../../../../backend/src/shared/ai-request';
 
-export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
+/** The backend owns retrieval, calculation and model credentials. */
 export async function POST(req: Request) {
+  let input: unknown;
+  try { input = await req.json(); }
+  catch { return NextResponse.json({ success: false, error: 'Nội dung JSON không hợp lệ' }, { status: 400 }); }
+  const body = input && typeof input === 'object' ? input as Record<string, unknown> : {};
+  const parsed = chatRequestSchema.safeParse({ ...body, deviceId: body.deviceId ?? process.env.NEXT_PUBLIC_DEFAULT_DEVICE_ID ?? 'RS-ESP32S3-01' });
+  if (!parsed.success) return NextResponse.json({ success: false, error: 'Câu hỏi phải có 1–4000 ký tự và mã trạm hợp lệ' }, { status: 400 });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 35000);
   try {
-    const body = await req.json();
-    const { message, history = [], deviceId, context } = body;
-
-    if (!message || typeof message !== 'string' || message.trim() === '') {
-      return NextResponse.json(
-        { success: false, error: 'Vui lòng cung cấp nội dung câu hỏi' },
-        { status: 400 }
-      );
-    }
-
-    const targetDeviceId =
-      deviceId ||
-      (typeof context === 'object' && context?.deviceId) ||
-      process.env.NEXT_PUBLIC_DEFAULT_DEVICE_ID ||
-      'RS-ESP32S3-01';
-
-    // 1. Try to fetch fresh authoritative context from backend
-    let safeContext: StationContext = normalizeStationContext(context, targetDeviceId);
-    const apiBase =
-      process.env.NEXT_PUBLIC_API_URL ||
-      (process.env.NODE_ENV === 'production'
-        ? 'https://rainsense-backend.onrender.com'
-        : 'http://localhost:5000');
-
-    try {
-      const ctxRes = await fetch(`${apiBase}/api/ai/context?deviceId=${targetDeviceId}`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store'
-      });
-      if (ctxRes.ok) {
-        const json = await ctxRes.json();
-        if (json?.success && json?.data) {
-          safeContext = normalizeStationContext(json.data, targetDeviceId);
-        }
-      }
-    } catch {
-      // Backend unreachable; safeContext already holds client-provided/normalized fallback
-    }
-
-    const cleanedHistory: ChatTurn[] = cleanChatHistory(history);
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    // 2. Call Gemini API if key is available
-    if (apiKey) {
-      const systemPrompt = buildRainSensePrompt(safeContext);
-      const validHistory = cleanedHistory.map((msg) => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.content }]
-      }));
-
-      const contents = [
-        ...validHistory,
-        {
-          role: 'user',
-          parts: [{ text: message }]
-        }
-      ];
-
-      const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
-
-      for (const model of modelsToTry) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-          const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-            {
-              method: 'POST',
-              signal: controller.signal,
-              headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': apiKey
-              },
-              body: JSON.stringify({
-                systemInstruction: {
-                  parts: [{ text: systemPrompt }]
-                },
-                contents,
-                generationConfig: {
-                  temperature: 0.4,
-                  maxOutputTokens: 1000
-                }
-              })
-            }
-          );
-
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            const data = await response.json();
-            const candidate = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (candidate && candidate.trim().length > 0) {
-              return NextResponse.json({
-                success: true,
-                data: {
-                  reply: cleanLatexArtifacts(candidate.trim()),
-                  context: safeContext
-                }
-              });
-            }
-          }
-        } catch {
-          // Try next model or fallback
-        }
-      }
-    }
-
-    // 3. Fallback to built-in portable RainSense reasoning engine
-    const localReply = generateRainSenseReply(message, safeContext, cleanedHistory);
-    return NextResponse.json({
-      success: true,
-      data: {
-        reply: cleanLatexArtifacts(localReply),
-        context: safeContext
-      }
+    const response = await fetch(`${getAiBackendBase()}/api/ai/chat`, {
+      method: 'POST', cache: 'no-store', signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...parsed.data, history: cleanChatHistory(parsed.data.history) })
     });
-  } catch (err: any) {
-    return NextResponse.json(
-      { success: false, error: err.message || 'Lỗi server xử lý AI' },
-      { status: 500 }
-    );
-  }
+    if (!response.ok) {
+      const status = response.status === 400 || response.status === 429 ? response.status : 503;
+      return NextResponse.json({ success: false, error: status === 429 ? 'Bạn gửi nhiều câu hỏi liên tiếp. Vui lòng thử lại sau.' : 'Chưa kết nối được dịch vụ RainSense AI' },
+        { status, headers: response.headers.has('retry-after') ? { 'Retry-After': response.headers.get('retry-after')! } : {} });
+    }
+    const data = await response.json();
+    if (data.success !== true || typeof data.data?.reply !== 'string' || data.data?.context?.deviceId !== parsed.data.deviceId) throw new Error('Invalid backend response');
+    return NextResponse.json(data);
+  } catch {
+    return NextResponse.json({ success: false, error: 'Dịch vụ RainSense AI tạm thời không khả dụng' }, { status: 503 });
+  } finally { clearTimeout(timer); }
 }

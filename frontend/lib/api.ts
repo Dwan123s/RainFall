@@ -1,3 +1,6 @@
+import type { ChatMetadata } from '../../backend/src/shared/ai-types';
+import type { StationContext } from './rainsense-ai';
+
 const DEFAULT_REMOTE_BACKEND = 'https://rainsense-backend.onrender.com';
 
 export function getApiBase(): string {
@@ -113,35 +116,23 @@ export const api = {
     message: string,
     history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
     deviceId: string = 'RS-ESP32S3-01',
-    context?: any
-  ): Promise<{ reply: string; context: any }> => {
-    // 1. Try Next.js local Vercel serverless route first for low latency
+    _context?: unknown
+  ): Promise<{ reply: string; context: StationContext; metadata?: ChatMetadata }> => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 40000);
     try {
       const localRes = await fetch('/api/ai/chat', {
         method: 'POST',
+        signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, history, deviceId, context })
-      });
-      if (localRes.ok) {
-        const json = await localRes.json();
-        if (json.success && json.data?.reply) {
-          return json.data;
-        }
-      }
-    } catch (localErr) {
-      // Local route failed, proceed to remote backend
-    }
-
-    // 2. Try Render backend directly (/api/ai/chat)
-    try {
-      return await request<{ reply: string; context: any }>('/api/ai/chat', {
-        method: 'POST',
         body: JSON.stringify({ message, history, deviceId })
       });
-    } catch (backendErr) {
-      // Re-try with local fallback if not already tried
-      throw backendErr;
-    }
+      const json = await localRes.json();
+      if (!localRes.ok || json.success !== true || !json.data?.reply || json.data?.context?.deviceId !== deviceId) {
+        throw Object.assign(new Error(json.error || 'Chưa kết nối được RainSense AI'), { status: localRes.status });
+      }
+      return json.data;
+    } finally { clearTimeout(timeout); }
   },
 
   getAiContext: async (deviceId: string = 'RS-ESP32S3-01'): Promise<any> => {

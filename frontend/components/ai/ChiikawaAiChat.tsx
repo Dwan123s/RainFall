@@ -15,209 +15,39 @@ import {
 } from 'lucide-react';
 import { RainSenseIcon } from './RainSenseIcon';
 import { api } from '@/lib/api';
-import {
-  generateRainSenseReply,
-  normalizeStationContext,
-  cleanLatexArtifacts,
-  ChatTurn
-} from '@/lib/rainsense-ai';
+import { generateRainSenseReply, normalizeStationContext } from '@/lib/rainsense-ai';
+import type { ChatMetadata } from '../../../backend/src/shared/ai-types';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
-}
-
-// Formatted message component that renders code blocks, tables, bold text, inline code cleanly
-function FormattedMessage({ content }: { content: string }) {
-  const cleaned = cleanLatexArtifacts(content);
-  const lines = cleaned.split('\n');
-
-  type Block =
-    | { type: 'code'; lines: string[] }
-    | { type: 'table'; lines: string[] }
-    | { type: 'text'; lines: string[] };
-
-  const blocks: Block[] = [];
-  let currentBlock: Block | null = null;
-  let inCode = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    if (trimmed.startsWith('```')) {
-      if (inCode) {
-        inCode = false;
-        if (currentBlock) blocks.push(currentBlock);
-        currentBlock = null;
-      } else {
-        if (currentBlock) blocks.push(currentBlock);
-        inCode = true;
-        currentBlock = { type: 'code', lines: [] };
-      }
-      continue;
-    }
-
-    if (inCode) {
-      if (currentBlock && currentBlock.type === 'code') {
-        currentBlock.lines.push(line);
-      }
-      continue;
-    }
-
-    const isTableLine = trimmed.startsWith('|') && trimmed.endsWith('|');
-    if (isTableLine) {
-      if (currentBlock && currentBlock.type === 'table') {
-        currentBlock.lines.push(line);
-      } else {
-        if (currentBlock) blocks.push(currentBlock);
-        currentBlock = { type: 'table', lines: [line] };
-      }
-    } else {
-      if (currentBlock && currentBlock.type === 'text') {
-        currentBlock.lines.push(line);
-      } else {
-        if (currentBlock) blocks.push(currentBlock);
-        currentBlock = { type: 'text', lines: [line] };
-      }
-    }
-  }
-  if (currentBlock) blocks.push(currentBlock);
-
-  // Helper to format inline bold & code
-  const renderInline = (str: string) => {
-    const parts = str.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
-    return parts.map((part, idx) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return (
-          <strong key={idx} className="font-bold text-slate-900 dark:text-slate-100">
-            {part.slice(2, -2)}
-          </strong>
-        );
-      }
-      if (part.startsWith('`') && part.endsWith('`')) {
-        return (
-          <code
-            key={idx}
-            className="px-1 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700/70 font-mono text-[11px] text-cyan-700 dark:text-cyan-300"
-          >
-            {part.slice(1, -1)}
-          </code>
-        );
-      }
-      return part;
-    });
-  };
-
-  return (
-    <div className="space-y-1.5 leading-relaxed text-xs">
-      {blocks.map((block, bIdx) => {
-        if (block.type === 'code') {
-          return (
-            <div
-              key={bIdx}
-              className="my-2.5 rounded-xl border border-cyan-500/40 bg-slate-900 shadow-md overflow-hidden"
-            >
-              <div className="flex items-center justify-between px-3 py-1.5 bg-slate-800/90 border-b border-slate-700/60 text-[10px] font-semibold text-cyan-400 select-none">
-                <span className="flex items-center gap-1.5">
-                  <span>📐</span>
-                  <span>CÔNG THỨC & THÔNG SỐ KỸ THUẬT</span>
-                </span>
-                <span className="text-slate-400 font-mono text-[9px]">RainSense Math</span>
-              </div>
-              <div className="p-3 font-mono text-[11px] leading-relaxed overflow-x-auto text-cyan-200 whitespace-pre">
-                {block.lines.join('\n')}
-              </div>
-            </div>
-          );
-        }
-
-        if (block.type === 'table') {
-          const rows = block.lines
-            .map((l) =>
-              l
-                .trim()
-                .split('|')
-                .slice(1, -1)
-                .map((cell) => cell.trim())
-            )
-            .filter((r) => r.length > 0 && !r.every((c) => /^[-:]+$/.test(c)));
-
-          if (rows.length === 0) return null;
-          const [header, ...bodyRows] = rows;
-
-          return (
-            <div
-              key={bIdx}
-              className="my-2 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700 shadow-2xs"
-            >
-              <table className="w-full text-left border-collapse text-[11px]">
-                <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700 font-semibold">
-                  <tr>
-                    {header.map((col, cIdx) => (
-                      <th key={cIdx} className="px-2.5 py-1.5">
-                        {renderInline(col)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800 bg-white/40 dark:bg-slate-900/40">
-                  {bodyRows.map((r, rIdx) => (
-                    <tr key={rIdx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                      {r.map((cell, cIdx) => (
-                        <td key={cIdx} className="px-2.5 py-1.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                          {renderInline(cell)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          );
-        }
-
-        return (
-          <div key={bIdx} className="whitespace-pre-line">
-            {block.lines.map((line, lIdx) => (
-              <React.Fragment key={lIdx}>
-                {renderInline(line)}
-                {lIdx < block.lines.length - 1 && '\n'}
-              </React.Fragment>
-            ))}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// Fallback response generator if network fails
-function getClientFallbackReply(query: string, ctx?: any, history: Message[] = []): string {
-  const normCtx = normalizeStationContext(ctx, ctx?.deviceId || 'RS-ESP32S3-01');
-  const chatTurns: ChatTurn[] = history.map((m) => ({
-    role: m.role,
-    content: m.content
-  }));
-  return generateRainSenseReply(query, normCtx, chatTurns);
+  metadata?: ChatMetadata;
 }
 
 const DEFAULT_WELCOME_MESSAGE: Message = {
   id: 'msg-welcome',
   role: 'assistant',
   content:
-    'Mình là **RainSense AI** 🌧️, hỗ trợ toàn diện về dữ liệu vi khí hậu và đồ án trạm quan trắc RainSense (ESP32-S3, gầu lật Hall A3144, BME280, MQTT TLS).\n\nBạn có thể hỏi về công thức tính mưa, số lần lật gầu hôm qua/hôm nay, sơ đồ mạch điện hoặc thời tiết hiện tại.',
+    'Xin chào! Mình là RainSense AI, hỗ trợ đọc dữ liệu trạm, phân tích mưa theo từng đợt hoặc từng buổi, và giải thích cảm biến, MQTT trong dự án. Mình sẽ nêu rõ khi dữ liệu thiếu hoặc chưa đủ để xác nhận tình hình hiện tại. Bạn muốn xem báo cáo thời tiết hay diễn biến mưa?',
   timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 };
 
 const SUGGESTED_PROMPTS = [
-  '🌧️ Cách gầu lật A3144 tính lượng mưa?',
-  '📊 Tính số lần gầu lật trong hôm qua',
-  '🔌 Sơ đồ nối chân ESP32-S3 & mạch điện',
   '🌤️ Phân tích thời tiết hiện tại',
-  '🌡️ Công thức tính điểm sương & khí áp'
+  '🌧️ Mưa nhiều, ngưng một lúc rồi mưa lại thì tính thế nào?',
+  '🌦️ So sánh lượng mưa sáng và chiều hôm nay',
+  '🌊 Mưa lớn kéo dài có thể dẫn đến nguy cơ gì?',
+  '🧮 Hôm nay trạm ghi nhận bao nhiêu lần gầu lật?',
+  '📐 12.8 mm với hệ số 0.64 mm/tip tương đương bao nhiêu lần gầu lật?',
+  '📏 Cách gầu lật A3144 tính lượng mưa?',
+  '⚠️ Khí áp giảm có nguy cơ bão không?',
+  '📉 Xu hướng khí áp trong 3 giờ vừa qua?',
+  '🌦️ Dự báo thời tiết ngày mai tại trạm',
+  '🔧 Từ nước mưa đến biểu đồ web hoạt động như thế nào?',
+  '🔌 Sơ đồ nối chân ESP32-S3 & BME280',
+  '📶 Hướng dẫn xử lý khi trạm ngoại tuyến'
 ];
 
 export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: string }) {
@@ -227,9 +57,18 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
   const [isTyping, setIsTyping] = useState(false);
   const [hasNewBadge, setHasNewBadge] = useState(true);
   const [showTooltip, setShowTooltip] = useState(true);
+  const generation = useRef(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    generation.current++;
+    setMessages([DEFAULT_WELCOME_MESSAGE]);
+    setIsTyping(false);
+    setInputValue('');
+    return () => { generation.current++; };
+  }, [stationId]);
 
   // Fetch live context from station
   const { data: contextData } = useQuery({
@@ -238,6 +77,10 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
     refetchInterval: 15000,
     enabled: isOpen
   });
+  const latestMetadata = [...messages].reverse().find((m) => m.metadata)?.metadata;
+  const modeLabel = latestMetadata?.mode === 'llm' ? 'AI kết nối' : latestMetadata?.mode === 'calculation' ? 'Tính toán' : latestMetadata?.mode === 'forecast' ? 'Nguồn dự báo' : latestMetadata?.mode === 'fallback' ? 'Dự phòng' : 'Sẵn sàng';
+  const observedAge = contextData?.observedAt ? Date.now() - Date.parse(contextData.observedAt) : NaN;
+  const fresh = contextData?.dataQuality?.fresh ?? (contextData?.isOnline && Number.isFinite(observedAge) && observedAge >= -60000 && observedAge <= 300000);
 
   // Auto-scroll to bottom of messages
   const scrollToBottom = () => {
@@ -268,39 +111,44 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
     setMessages((prev) => [...prev, userMsg]);
     setInputValue('');
     setIsTyping(true);
+    const requestGeneration = ++generation.current;
 
     try {
-      const history = messages.slice(-6).map((m) => ({
+      const history = messages.filter((m) => m.id !== 'msg-welcome').slice(-8).map((m) => ({
         role: m.role,
         content: m.content
       }));
 
       const res = await api.chatWithAi(text, history, stationId, contextData);
+      if (requestGeneration !== generation.current) return;
 
       const botMsg: Message = {
         id: `bot-${Date.now()}`,
         role: 'assistant',
         content: res.reply,
+        metadata: res.metadata,
         timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
       };
 
       setMessages((prev) => [...prev, botMsg]);
     } catch (err: any) {
-      // Smart fallback: always provide helpful response grounded in telemetry data
-      const fallbackReply = getClientFallbackReply(text, contextData, messages);
-      const fallbackMsg: Message = {
+      if (requestGeneration !== generation.current) return;
+      const errorMsg: Message = {
         id: `bot-${Date.now()}`,
         role: 'assistant',
-        content: fallbackReply,
+        content: err?.status === 400 || err?.status === 429 ? err.message : generateRainSenseReply(text, normalizeStationContext(contextData, stationId), messages.filter((m) => m.id !== 'msg-welcome')),
+        metadata: { mode: 'fallback', provider: 'local', model: null, generatedAt: new Date().toISOString(), fallbackReason: err?.status === 400 || err?.status === 429 ? undefined : 'backend_unavailable', sources: [] },
         timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
       };
-      setMessages((prev) => [...prev, fallbackMsg]);
+      setMessages((prev) => [...prev, errorMsg]);
     } finally {
-      setIsTyping(false);
+      if (requestGeneration === generation.current) setIsTyping(false);
     }
   };
 
   const handleResetChat = () => {
+    generation.current++;
+    setIsTyping(false);
     setMessages([DEFAULT_WELCOME_MESSAGE]);
   };
 
@@ -389,13 +237,13 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
                     <span>RainSense AI</span>
                     <Sparkles className="w-3.5 h-3.5 text-cyan-500 fill-cyan-500" />
                   </h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>Trực tuyến</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono border flex items-center gap-1 ${latestMetadata?.mode === 'fallback' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30' : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${latestMetadata?.mode === 'fallback' ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse'}`} />
+                    <span>{modeLabel}</span>
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Trợ lý Khí tượng & Giám sát Mưa Đô thị
+                  Trợ lý thời tiết & kỹ thuật RainSense
                 </p>
               </div>
             </div>
@@ -424,22 +272,31 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                 <span className="flex items-center gap-1">
                   <span className="text-orange-500">🌡️</span>
-                  <span>{contextData.currentTemp !== null ? `${Number(contextData.currentTemp).toFixed(1)}°C` : '--'}</span>
+                  <span>{contextData.currentTemp != null ? `${contextData.currentTemp.toFixed(1)}°C` : '--'}</span>
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <span className="text-blue-500">💧</span>
-                  <span>{contextData.currentHumid !== null ? `${Number(contextData.currentHumid).toFixed(1)}%` : '--'}</span>
+                  <span>{contextData.currentHumid != null ? `${contextData.currentHumid.toFixed(1)}%` : '--'}</span>
                 </span>
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <span className="text-cyan-500">🌧️</span>
-                  <span>{contextData.todayRainMm !== null && contextData.todayRainMm !== undefined ? `${Number(contextData.todayRainMm).toFixed(1)}mm` : '0.0mm'}</span>
+                  <span>{contextData.todayRainMm == null ? '--' : `${contextData.todayRainMm.toFixed(1)} mm`}</span>
                 </span>
               </div>
               <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 font-semibold border border-cyan-500/20">
                 {contextData.deviceId}
               </span>
+            </div>
+          )}
+
+          {contextData && (!fresh || contextData.dataQuality?.demo || contextData.dataQuality?.source === 'memory' || contextData.dataQuality?.source === 'mixed') && (
+            <div role="status" className="px-3.5 py-2 text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border-b border-amber-500/20">
+              {contextData.dataQuality?.demo ? 'Dữ liệu giả lập. ' : ''}
+              {!fresh ? 'Số đo chưa đủ mới hoặc trạm ngoại tuyến. ' : ''}
+              {contextData.observedAt && Number.isFinite(Date.parse(contextData.observedAt)) ? `Lần đo gần nhất: ${new Date(contextData.observedAt).toLocaleString('vi-VN', { timeZone: contextData.timezone || 'Asia/Ho_Chi_Minh', hour12: false })}. ` : 'Chưa có thời điểm đo. '}
+              {contextData.dataQuality?.source === 'memory' || contextData.dataQuality?.source === 'mixed' ? 'Lịch sử đang dùng bộ nhớ dự phòng và có thể thiếu.' : ''}
             </div>
           )}
 
@@ -467,16 +324,30 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
                       : 'bg-slate-100 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-slate-700/50 rounded-bl-xs'
                   }`}
                 >
-                  {msg.role === 'user' ? (
-                    <div className="whitespace-pre-line font-medium text-white">
-                      {msg.content}
+                  <div className="whitespace-pre-line prose-xs dark:prose-invert">
+                    {msg.content}
+                  </div>
+                  {msg.metadata && (
+                    <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
+                      {msg.metadata.mode === 'llm' ? 'AI kết nối' : msg.metadata.mode === 'calculation' ? 'Tính bằng công thức' : msg.metadata.mode === 'forecast' ? 'Dự báo theo nguồn khí tượng' : 'Trả lời dự phòng'}
+                      {msg.metadata.mode === 'fallback' && msg.metadata.fallbackReason && <span> · {msg.metadata.fallbackReason === 'missing_api_key' ? 'AI chưa được cấu hình' : msg.metadata.fallbackReason === 'model_unavailable' ? 'Dịch vụ AI tạm thời gián đoạn' : 'Chưa kết nối được máy chủ'}</span>}
+                      {msg.metadata.sources.length > 0 && (
+                        <details className="mt-1">
+                          <summary className="cursor-pointer">Nguồn tham khảo ({msg.metadata.sources.length})</summary>
+                          <ul className="mt-1 space-y-1">
+                            {msg.metadata.sources.map((source) => (
+                              <li key={source.id}>
+                                {source.url?.startsWith('https://') ? <a href={source.url} target="_blank" rel="noopener noreferrer" className="underline hover:text-cyan-600">{source.title}</a> : source.title}
+                                <span> · {source.version}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
                     </div>
-                  ) : (
-                    <FormattedMessage content={msg.content} />
                   )}
-
                   <div
-                    className={`text-[9px] mt-1.5 font-mono text-right ${
+                    className={`text-[9px] mt-1 font-mono text-right ${
                       msg.role === 'user'
                         ? 'text-cyan-100/75'
                         : 'text-slate-400 dark:text-slate-500'
@@ -543,7 +414,8 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                placeholder="Hỏi RainSense AI: 'Hôm nay thế nào?', 'Có mưa không?', cảm biến ESP32-S3..."
+                placeholder="Hỏi RainSense AI về lượng mưa, thời tiết, cảm biến ESP32-S3..."
+                maxLength={4000}
                 disabled={isTyping}
                 className="flex-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 disabled:opacity-50"
               />

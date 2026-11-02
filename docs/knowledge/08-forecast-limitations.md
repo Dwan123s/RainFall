@@ -1,0 +1,7 @@
+<!-- {"documentId":"forecast-limitations","title":"Nguồn và giới hạn dự báo","version":"1.0","hardwareVariant":"all","firmwareVersion":"any","verifiedAt":"2026-11-02","status":"verified","source":"https://open-meteo.com/en/docs","keywords":["dự báo","xác suất","tương lai","ngày mai","ngập","bão","sét","mưa kéo dài","thiên tai"]} -->
+
+## Quan trắc và dự báo
+Quan trắc là bản đo tại trạm ở thời điểm cụ thể; dự báo là kết quả mô hình khí tượng cho vị trí và thời hạn. Chatbot lấy dự báo Open-Meteo khi trạm có tọa độ cấu hình; không suy tọa độ từ múi giờ Asia/Ho_Chi_Minh. API hourly cung cấp nhiệt độ và RH tại mốc giờ; lượng mưa và xác suất mưa là cho khoảng một giờ trước mốc đó. Xác suất của nguồn này là khả năng lượng giáng thủy vượt 0,1 mm trong khoảng đó, không phải tỷ lệ thời gian trời mưa và không cộng các xác suất giờ thành xác suất cả ngày. Thời điểm tải API không được gọi là thời điểm mô hình phát hành khi nguồn không cung cấp.
+
+## Giới hạn và huấn luyện
+Khi thiếu vị trí, nguồn lỗi, hết hạn hoặc vượt khoảng hỗ trợ, nói rõ chưa có dự báo phù hợp. Khi trạm offline vẫn có thể báo dự báo bên ngoài còn hiệu lực, đồng thời nói thiếu quan trắc tại chỗ. Cảm biến hiện tại không xác nhận bão, sét, độ sâu ngập, mực nước hoặc lũ đến lúc nào. Mưa kéo dài có thể tăng nguy cơ theo điều kiện địa hình và thoát nước; đó là kịch bản, không phải xác nhận thiên tai. Mô hình địa phương cần dữ liệu lịch sử có nhãn, kiểm thử theo thời gian và so với baseline trước khi dùng; chatbot hiện không tự huấn luyện từ tin nhắn.

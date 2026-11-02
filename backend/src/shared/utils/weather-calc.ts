@@ -86,11 +86,11 @@ export function calculateSeaLevelPressure(
   return Math.round(p0 * 10) / 10;
 }
 
-export type PressureTrendCategory = 'RAPIDLY_RISING' | 'RISING' | 'STABLE' | 'FALLING' | 'RAPIDLY_FALLING';
+export type PressureTrendCategory = 'UNKNOWN' | 'RAPIDLY_RISING' | 'RISING' | 'STABLE' | 'FALLING' | 'RAPIDLY_FALLING';
 
 export interface PressureTrendResult {
   category: PressureTrendCategory;
-  deltaHpa: number;
+  deltaHpa: number | null;
   labelVi: string;
 }
 
@@ -100,8 +100,8 @@ export interface PressureTrendResult {
  * @param pastPressure Pressure 3 hours ago in hPa
  */
 export function classifyPressureTrend(currentPressure: number, pastPressure?: number): PressureTrendResult {
-  if (pastPressure === undefined || pastPressure === null) {
-    return { category: 'STABLE', deltaHpa: 0, labelVi: 'Ổn định' };
+  if (!Number.isFinite(currentPressure) || pastPressure === undefined || pastPressure === null || !Number.isFinite(pastPressure)) {
+    return { category: 'UNKNOWN', deltaHpa: null, labelVi: 'Chưa đủ dữ liệu' };
   }
   const delta = Math.round((currentPressure - pastPressure) * 10) / 10;
 
@@ -110,7 +110,7 @@ export function classifyPressureTrend(currentPressure: number, pastPressure?: nu
   } else if (delta >= 1.2) {
     return { category: 'RISING', deltaHpa: delta, labelVi: 'Đang tăng' };
   } else if (delta <= -3.0) {
-    return { category: 'RAPIDLY_FALLING', deltaHpa: delta, labelVi: 'Giảm nhanh (Bão)' };
+    return { category: 'RAPIDLY_FALLING', deltaHpa: delta, labelVi: 'Giảm nhanh' };
   } else if (delta <= -1.2) {
     return { category: 'FALLING', deltaHpa: delta, labelVi: 'Đang giảm' };
   } else {

@@ -63,3 +63,4 @@ apiRouter.post('/demo/simulate-tip', demoController.simulateTip);
 // Chiikawa AI Assistant
 apiRouter.post('/ai/chat', aiController.chat);
 apiRouter.get('/ai/context', aiController.getContext);
+apiRouter.get('/ai/series', aiController.getSeries);

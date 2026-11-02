@@ -27,7 +27,6 @@ import { formatTimeVi, formatDateTimeVi } from '@/lib/utils';
 import {
   calculateDewPoint,
   calculateHeatIndex,
-  classifyPressureTrend,
   getHumidityStatusVi
 } from '@/lib/weather-calc';
 
@@ -76,7 +75,7 @@ export default function EnvironmentalPage() {
   const dewPoint = hasData && currentHumid !== null ? calculateDewPoint(currentTemp, currentHumid) : null;
   const heatIndex = hasData && currentHumid !== null ? calculateHeatIndex(currentTemp, currentHumid) : null;
   const humidityStatus = currentHumid !== null ? getHumidityStatusVi(currentHumid) : { label: 'Chờ dữ liệu', color: 'text-slate-400' };
-  const pressureTrend = currentPress !== null ? classifyPressureTrend(currentPress) : { category: 'STABLE', labelVi: 'Chờ dữ liệu', rateHPaPer3h: 0 };
+  const pressureTrend = stats?.pressure?.trend ?? { category: 'UNKNOWN', labelVi: 'Chưa đủ dữ liệu' };
 
   const tooltipStyle = isDark
     ? { backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: '#F1F5F9' }

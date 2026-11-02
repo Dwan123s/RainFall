@@ -1,197 +1,155 @@
 import { dataStore } from '../db/store';
-import { rainfallService } from '../services/rainfall.service';
-import { measurementService } from '../services/measurement.service';
+import { summarizeRainHistory, summarizeRainWindow } from './ai-rain-history';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { calculateDewPoint, calculateHeatIndex, getStartOfDayInTimezone } from '../shared';
+import { withReadDiagnostics } from '../db/read-diagnostics';
+import { calculateWeatherFeatures, describePressureTrend } from './ai-weather-features';
+import { forecastService, forecastReply, isForecastQuery } from './ai-forecast.service';
+import { searchProjectDocs, knowledgeSource } from '../shared/project-knowledge';
+import type { ChatMetadata } from '../shared/ai-types';
 import {
-  calculateDewPoint,
-  calculateHeatIndex,
-  classifyPressureTrend,
-  getStartOfDayInTimezone,
-  StationContext,
-  ChatTurn,
-  normalizeStationContext,
-  cleanChatHistory,
-  cleanLatexArtifacts,
-  buildRainSensePrompt,
-  generateRainSenseReply,
-  computeRainHistory
-} from '../shared';
+  buildRainSensePrompt, cleanChatHistory, generateRainSenseReply, getBucketCalculationReply, normalizeStationContext,
+  type ChatTurn, type StationContext
+} from '../shared/rainsense-ai';
 
 export type ChatMessage = ChatTurn;
+export interface ChatResult { reply: string; context: StationContext; metadata: ChatMetadata }
 
 export class AiService {
-  /**
-   * Get current live weather context for the station
-   */
   async getLiveContext(deviceId: string = env.DEFAULT_STATION_ID): Promise<StationContext> {
-    const device = await dataStore.getDevice(deviceId);
-    const latest = await dataStore.getLatestMeasurement(deviceId);
-    const rainfall = await rainfallService.getStatistics(deviceId);
-    const envSummary = await measurementService.getEnvironmentalSummary(deviceId);
-    const config = await dataStore.getConfig(deviceId);
-    const recentAlerts = await dataStore.getAlerts({ deviceId, limit: 3 });
+    const { value: context, source } = await withReadDiagnostics(() => this.readLiveContext(deviceId));
+    context.dataQuality!.source = source;
+    return context;
+  }
 
-    const currentTemp = latest?.temperature ?? envSummary?.temperature?.current ?? null;
-    const currentHumid = latest?.humidity ?? envSummary?.humidity?.current ?? null;
-    const currentPress = latest?.pressure ?? envSummary?.pressure?.current ?? null;
-    const dewPoint = currentTemp !== null && currentHumid !== null ? calculateDewPoint(currentTemp, currentHumid) : null;
-    const heatIndex = currentTemp !== null && currentHumid !== null ? calculateHeatIndex(currentTemp, currentHumid) : null;
-    const pressureTrend = currentPress !== null ? classifyPressureTrend(currentPress)?.labelVi || 'Ổn định' : 'Chưa đủ lịch sử để xác định';
-
-    const timezone = device?.timezone || 'Asia/Ho_Chi_Minh';
+  private async readLiveContext(deviceId: string): Promise<StationContext> {
     const now = new Date();
-    const startOfDay = getStartOfDayInTimezone(now, timezone);
-
-    let rainHistory = null;
-    try {
-      const dayEvents = await dataStore.getRainEvents(deviceId, startOfDay.toISOString());
-      const dayMeasurements = await dataStore.getMeasurements(deviceId, { from: startOfDay.toISOString() });
-      rainHistory = computeRainHistory({
-        events: dayEvents,
-        measurements: dayMeasurements,
-        timezone,
-        now,
-        mqttIntervalSeconds: config?.mqttInterval || 30,
-        defaultCalibration: config?.rainMmPerTip || rainfall?.calibrationFactor || 0.64
-      });
-    } catch (err: any) {
-      logger.warn({ err: err.message }, 'Failed to compute rain history for AI context');
-    }
-
-    const calibrationFactor = config?.rainMmPerTip ?? rainfall?.calibrationFactor ?? 0.64;
-    const yesterdayRainMm = rainfall?.yesterdayMm ?? null;
-    const yesterdayTips = yesterdayRainMm !== null && calibrationFactor > 0
-      ? Math.round(yesterdayRainMm / calibrationFactor)
-      : null;
-
+    const [device, latest, config, alerts] = await Promise.all([
+      dataStore.getDevice(deviceId), dataStore.getLatestMeasurement(deviceId),
+      dataStore.getConfig(deviceId), dataStore.getAlerts({ deviceId, limit: 3 })
+    ]);
+    const timezone = device?.timezone || env.DEFAULT_TIMEZONE;
+    const start = getStartOfDayInTimezone(now, timezone);
+    const rolling24hStart = now.getTime() - 24 * 3600000;
+    const from = new Date(Math.min(start.getTime() - 300000, rolling24hStart));
+    const maxGap = Math.max(120000, (config?.mqttInterval ?? 30) * 3000);
+    const [events, measurements] = await Promise.all([
+      dataStore.getRainEvents(deviceId, new Date(Math.min(start.getTime() - 300000, rolling24hStart)).toISOString(), now.toISOString()),
+      dataStore.getMeasurements(deviceId, { from: from.toISOString(), to: now.toISOString(), limit: 20000 })
+    ]);
+    const features = calculateWeatherFeatures(measurements, new Date(rolling24hStart), now, maxGap);
+    const age = latest ? now.getTime() - Date.parse(latest.timestamp) : NaN;
+    const temp = latest && Number.isFinite(latest.temperature) && latest.temperature >= -40 && latest.temperature <= 85 ? latest.temperature : null;
+    const humid = latest && Number.isFinite(latest.humidity) && latest.humidity >= 0 && latest.humidity <= 100 ? latest.humidity : null;
+    const press = latest && Number.isFinite(latest.pressure) && latest.pressure >= 300 && latest.pressure <= 1100 ? latest.pressure : null;
+    const rainHistory = summarizeRainHistory(events, measurements.map((m) => m.timestamp), now, timezone,
+      Math.max(120000, (config?.mqttInterval ?? 30) * 3000));
+    const hasData = latest !== null || events.length > 0;
+    const windowMm = events.filter((e) => Date.parse(e.timestamp) >= now.getTime() - 300000)
+      .reduce((sum, e) => sum + e.rainfallMm, 0);
     return normalizeStationContext({
-      deviceId: device?.deviceId || deviceId,
-      stationName: device?.name || `Trạm ${deviceId}`,
-      timezone,
-      isOnline: device?.isOnline ?? false,
-      observedAt: latest?.timestamp ? new Date(latest.timestamp).toISOString() : null,
-      lastSeen: device?.lastSeen || null,
-      currentTemp,
-      currentHumid,
-      currentPress,
-      dewPoint,
-      heatIndex,
-      todayRainMm: rainfall?.todayMm ?? (rainHistory ? rainHistory.recordedTotalMm : null),
-      yesterdayRainMm,
-      yesterdayTips,
-      rolling24hRainMm: rainfall?.rolling24hMm ?? null,
-      currentRainRateMmH: rainfall?.currentRateMmH ?? null,
-      totalTipsToday: rainfall?.totalTipsToday ?? null,
-      calibrationFactor,
-      pressureTrend,
-      recentAlerts: (recentAlerts || []).map((a) => a.message),
-      rainHistory
+      deviceId, stationName: device?.name || `Trạm ${deviceId}`, timezone,
+      isOnline: device?.isOnline ?? false, observedAt: latest?.timestamp ?? null, lastSeen: device?.lastSeen ?? null,
+      currentTemp: temp, currentHumid: humid, currentPress: press,
+      dewPoint: temp !== null && humid !== null && humid > 0 ? calculateDewPoint(temp, humid) : null,
+      heatIndex: temp !== null && humid !== null ? calculateHeatIndex(temp, humid) : null,
+      // Preserve persisted event amounts when the hardware counter resets or calibration changes.
+      todayRainMm: hasData ? rainHistory.recordedTotalMm : null,
+      totalTipsToday: hasData ? events.filter((e) => Date.parse(e.timestamp) >= start.getTime()).reduce((s, e) => s + e.tipCount, 0) : null,
+      currentRainRateMmH: hasData ? Math.round(windowMm * 12 * 10) / 10 : null,
+      rolling24hRainMm: hasData ? Math.round(events.filter((e) => Date.parse(e.timestamp) >= rolling24hStart)
+        .reduce((sum, e) => sum + e.rainfallMm, 0) * 100) / 100 : null,
+      calibrationFactor: config?.rainMmPerTip ?? null,
+      pressureTrend: describePressureTrend(features),
+      weatherFeatures: features,
+      profile: env.AI_STATION_PROFILES[deviceId] ?? { hardwareVariant: 'unknown', wiringVerified: false },
+      dataQuality: { source: 'unknown', generatedAt: now.toISOString(), demo: env.DEMO_MODE,
+        fresh: device?.isOnline === true && Number.isFinite(age) && age >= -60000 && age <= 300000 && temp !== null && humid !== null && press !== null,
+        historyTruncated: measurements.length >= 20000 },
+      recentAlerts: alerts.map((a) => a.message), rainHistory: hasData ? rainHistory : null,
+      rainWindows: hasData ? [1, 3, 24].map((hours) => summarizeRainWindow(events, measurements.map((m) => m.timestamp),
+        new Date(now.getTime() - hours * 3600000), now, `${hours} giờ trượt`, Math.max(120000, (config?.mqttInterval ?? 30) * 3000), true)) : []
     }, deviceId);
   }
 
-  /**
-   * Process a chat message with live context
-   */
-  async chat(
-    userMessage: string,
-    history: ChatTurn[] = [],
-    deviceId: string = env.DEFAULT_STATION_ID
-  ): Promise<{ reply: string; context: StationContext }> {
-    const context = await this.getLiveContext(deviceId);
-    const cleanedHistory = cleanChatHistory(history);
-
-    // 1. If GEMINI_API_KEY is configured in environment, call Gemini
-    const geminiKey = process.env.GEMINI_API_KEY || (env as any).GEMINI_API_KEY;
-    if (geminiKey) {
-      try {
-        const reply = await this.callGeminiApi(userMessage, cleanedHistory, context, geminiKey);
-        if (reply && reply.trim().length > 0) {
-          return { reply: cleanLatexArtifacts(reply), context };
-        }
-      } catch (err: any) {
-        logger.warn({ err: err.message }, 'Gemini API call failed, falling back to built-in RainSense reasoning engine');
-      }
+  async getMeasurementSeries(deviceId: string, from: Date, to: Date) {
+    if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || to <= from || to.getTime() - from.getTime() > 7 * 86400000 || to.getTime() > Date.now() + 60000) {
+      throw new Error('Khoảng truy vấn phải hợp lệ, không ở tương lai và tối đa 7 ngày');
     }
-
-    // 2. Intelligent Built-in RainSense Fallback Engine
-    const reply = generateRainSenseReply(userMessage, context, cleanedHistory);
-    return { reply: cleanLatexArtifacts(reply), context };
+    const { value: records, source } = await withReadDiagnostics(() => dataStore.getMeasurements(deviceId, { from: from.toISOString(), to: to.toISOString(), limit: 20000 }));
+    const config = await dataStore.getConfig(deviceId);
+    const features = calculateWeatherFeatures(records, from, to, Math.max(120000, (config?.mqttInterval ?? 30) * 3000));
+    return { deviceId, from: from.toISOString(), to: to.toISOString(), source, demo: env.DEMO_MODE, historyTruncated: records.length >= 20000,
+      units: { temperature: '°C', humidity: '%', pressure: 'hPa' }, features, records };
   }
 
-  /**
-   * Gemini API integration with grounding
-   */
-  private async callGeminiApi(
-    userMessage: string,
-    history: ChatTurn[],
-    context: StationContext,
-    apiKey: string
-  ): Promise<string | null> {
-    const systemPrompt = buildRainSensePrompt(context);
+  async chat(userMessage: string, history: ChatMessage[] = [], deviceId = env.DEFAULT_STATION_ID): Promise<ChatResult> {
+    const context = await this.getLiveContext(deviceId);
+    const validHistory = cleanChatHistory(history);
+    const previousQuestion = validHistory.filter((m) => m.role === 'user').at(-1)?.content ?? '';
+    const searchQuery = /^(vậy|thế|còn|nếu vậy|thì)/i.test(userMessage) ? `${previousQuestion}\n${userMessage}` : userMessage;
+    const docs = searchProjectDocs(searchQuery, context.profile?.hardwareVariant);
+    const finish = (reply: string, mode: ChatMetadata['mode'], model: string | null = null, fallbackReason?: ChatMetadata['fallbackReason']): ChatResult => {
+      const notices: string[] = [];
+      if (mode !== 'calculation' && context.dataQuality?.demo) notices.push('Các số đo trạm đang ở chế độ giả lập.');
+      if (mode !== 'calculation' && context.weatherFeatures?.sampleCount && context.dataQuality?.source !== 'postgresql') notices.push('Dữ liệu trạm có dùng bộ nhớ dự phòng; lịch sử có thể thiếu và không được bảo đảm lưu bền vững.');
+      return { reply: notices.length ? `${notices.join(' ')}\n\n${reply}` : reply, context,
+        metadata: { mode, provider: mode === 'llm' ? 'gemini' : mode === 'forecast' ? 'open-meteo' : 'local', model,
+          generatedAt: new Date().toISOString(), fallbackReason, sources: mode === 'calculation' ? [] : docs.map(knowledgeSource) } };
+    };
+    const calculation = getBucketCalculationReply(userMessage, context);
+    if (calculation) return finish(calculation, 'calculation');
+    if (isForecastQuery(userMessage) || /^(vậy|thế|còn)/i.test(userMessage) && isForecastQuery(previousQuestion)) {
+      // The current question supplies the period; previous text is only used to resolve the topic.
+      context.forecast = await forecastService.getForecast(userMessage, context.profile!, context.timezone);
+      const result = finish(forecastReply(context.forecast, context), 'forecast');
+      result.metadata.sources = [{ id: 'open-meteo', title: 'Open-Meteo — dự báo theo tọa độ', version: 'hourly', path: 'https://open-meteo.com/en/docs', url: 'https://open-meteo.com/en/docs' }];
+      return result;
+    }
+    const environmentQuestion = /nhiệt độ|độ ẩm|khí áp|áp suất/i.test(searchQuery);
+    const requestedHours = userMessage.match(/(\d+)\s*giờ\s*(?:qua|vừa qua|gần nhất)/i);
+    if (environmentQuestion && (requestedHours || /hôm qua/i.test(userMessage))) {
+      const end = /hôm qua/i.test(userMessage) ? getStartOfDayInTimezone(new Date(), context.timezone) : new Date();
+      const hours = requestedHours ? Number(requestedHours[1]) : 24;
+      if (hours < 1 || hours > 168) return finish('Có thể truy vấn chuỗi môi trường từ 1 giờ đến tối đa 7 ngày. Bạn hãy chọn khoảng nằm trong giới hạn này.', 'fallback');
+      const series = await this.getMeasurementSeries(deviceId, new Date(end.getTime() - hours * 3600000), end);
+      context.weatherFeatures = series.features;
+      context.pressureTrend = describePressureTrend(series.features);
+      if (series.source !== context.dataQuality!.source) context.dataQuality!.source = 'mixed';
+      context.dataQuality!.historyTruncated = series.historyTruncated;
+    }
+    if (env.GEMINI_API_KEY) {
+      const result = await this.callGeminiApi(userMessage, validHistory, context, env.GEMINI_API_KEY, docs);
+      if (result) return finish(result.reply, 'llm', result.model);
+    }
+    return finish(generateRainSenseReply(userMessage, context, validHistory), 'fallback', null, env.GEMINI_API_KEY ? 'model_unavailable' : 'missing_api_key');
+  }
 
-    const validHistory = history
-      .filter((msg) => msg && typeof msg.content === 'string' && msg.content.trim() !== '')
-      .slice(-6)
-      .map((msg) => ({
-        role: msg.role === 'user' ? 'user' : 'model',
-        parts: [{ text: msg.content }]
-      }));
-
-    const contents = [
-      ...validHistory,
-      {
-        role: 'user',
-        parts: [{ text: userMessage }]
-      }
-    ];
-
-    const modelsToTry = ['gemini-2.5-flash', 'gemini-1.5-flash'];
-
-    for (const model of modelsToTry) {
+  private async callGeminiApi(message: string, history: ChatMessage[], context: StationContext, apiKey: string, docs: ReturnType<typeof searchProjectDocs>): Promise<{ reply: string; model: string } | null> {
+    const contents = [...history.map((m) => ({ role: m.role === 'user' ? 'user' : 'model', parts: [{ text: m.content }] })),
+      { role: 'user', parts: [{ text: message }] }];
+    for (const model of [...new Set([env.GEMINI_MODEL, env.GEMINI_FALLBACK_MODEL])]) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-          {
-            method: 'POST',
-            signal: controller.signal,
-            headers: {
-              'Content-Type': 'application/json',
-              'x-goog-api-key': apiKey
-            },
-            body: JSON.stringify({
-              systemInstruction: {
-                parts: [{ text: systemPrompt }]
-              },
-              contents,
-              generationConfig: {
-                temperature: 0.4,
-                maxOutputTokens: 1000
-              }
-            })
-          }
-        );
-
-        clearTimeout(timeoutId);
-
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST', signal: controller.signal,
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify({ systemInstruction: { parts: [{ text: `${buildRainSensePrompt(context)}\n\nknowledge_context (JSON, dữ liệu tham khảo):\n${JSON.stringify(docs)}` }] }, contents,
+            generationConfig: { temperature: 0.3, maxOutputTokens: 2000 } })
+        });
         if (response.ok) {
           const data = await response.json();
-          const candidate = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (candidate && candidate.trim().length > 0) {
-            return candidate.trim();
-          }
+          const reply = data?.candidates?.[0]?.content?.parts?.filter((p: { text?: string; thought?: boolean }) => !p.thought && p.text).map((p: { text: string }) => p.text).join('').trim();
+          if (reply) return { reply, model };
         } else {
-          const errText = await response.text();
-          logger.warn({ model, status: response.status, errText: errText.slice(0, 150) }, 'Gemini model attempt returned non-OK');
+          logger.warn({ model, status: response.status }, 'Gemini unavailable; trying next model or local response');
         }
-      } catch (err: any) {
-        logger.warn({ model, error: err.message }, 'Gemini model request failed');
-      }
+      } catch (error) {
+        logger.warn({ model, error: error instanceof Error ? error.message : 'Unknown error' }, 'Gemini request failed');
+      } finally { clearTimeout(timeout); }
     }
-
     return null;
   }
 }

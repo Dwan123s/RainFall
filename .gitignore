@@ -47,3 +47,7 @@ firmware/**/build/
 # Prisma generated artifacts (if custom)
 prisma/*.db
 prisma/*.db-journal
+
+# Local AI training inputs and experimental models
+backend/observations*.json
+backend/experimental-model*.json
