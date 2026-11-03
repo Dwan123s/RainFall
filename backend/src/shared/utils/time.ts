@@ -23,7 +23,7 @@ export function getStartOfDayInTimezone(date: Date = new Date(), timezone: strin
 
   // Return the UTC date corresponding to 00:00:00 in that timezone
   // For UTC+7 (Asia/Ho_Chi_Minh):
-  const offsetHours = timezone === 'Asia/Ho_Chi_Minh' ? 7 : 0;
+  const offsetHours = timezone === 'Asia/Ho_Chi_Minh' || timezone === 'Asia/Saigon' ? 7 : 0;
   const utcDate = new Date(Date.UTC(year, month - 1, day, -offsetHours, 0, 0, 0));
   return utcDate;
 }
@@ -42,7 +42,7 @@ export function getStartOfMonthInTimezone(date: Date = new Date(), timezone: str
   const year = parseInt(parts.find((p) => p.type === 'year')?.value || '1970', 10);
   const month = parseInt(parts.find((p) => p.type === 'month')?.value || '1', 10);
 
-  const offsetHours = timezone === 'Asia/Ho_Chi_Minh' ? 7 : 0;
+  const offsetHours = timezone === 'Asia/Ho_Chi_Minh' || timezone === 'Asia/Saigon' ? 7 : 0;
   return new Date(Date.UTC(year, month - 1, 1, -offsetHours, 0, 0, 0));
 }
 

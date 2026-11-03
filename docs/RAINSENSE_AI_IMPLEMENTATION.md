@@ -142,3 +142,14 @@ API bổ sung:
 Khi khởi động, `ensureRainSchema` chỉ thêm các cột còn thiếu và bảng nhãn/index bằng SQL idempotent; không chạy reset hay nhận mất dữ liệu. Tài khoản DB cần quyền ALTER/CREATE cho lần nâng cấp. Lỗi đọc nhãn không được coi như không có nhãn. Khi DB chưa kết nối, chế độ RAM luôn được báo rõ; không coi RAM là lưu trữ bền vững.
 
 Các bài kiểm thử mới dùng số đo tổng hợp trong fixture và xác minh bằng API HTTP cục bộ; không xả nước hoặc giả lập dữ liệu vào trạm thật.
+
+## Rà soát các nhánh hội thoại và thời gian
+
+- Báo cáo số đo hiện tại được tính cục bộ trước khi gọi mô hình; trả đủ đại lượng được hỏi, kể cả câu ngắn “Nhiệt độ, độ ẩm, áp suất?”. Một câu hỏi có “áp suất” không còn làm mất nhiệt độ và độ ẩm. Giữ thời điểm đo, cảnh báo bản ghi cũ và phần nước thử.
+- Trợ lý dự phòng cũng dùng cách diễn giải trung tính về nước qua gầu, không tự gọi lưu lượng quy đổi là “mưa rất to”. Câu “hiện tại có mưa không” đi vào đọc quan trắc, không bị hiểu thành yêu cầu dự báo.
+- Khoảng quan trắc nhận thời lượng ghép “1 giờ 30 phút”, “một tiếng rưỡi”, “nửa giờ”, “hai tiếng”; nhận các buổi hôm nay/hôm qua và giờ dạng 13h15. Mốc đơn “2 giờ trước”, nhiều khoảng cạnh tranh, mốc giờ sai hoặc ngày/tuần/tháng chưa hỗ trợ được làm rõ, không thay bằng hôm nay hoặc chỉ lấy con số đầu tiên.
+- “Còn hiện tại?” không kế thừa “hôm qua” từ câu trước. Khi chỉ đổi thời lượng, giữ đủ các đại lượng đã hỏi; chỉ kế thừa chủ đề và khoảng thời gian, không lấy số đo trong lời người dùng làm dữ liệu.
+- Bộ phân tích thời lượng được chia sẻ với dự báo: “1 tiếng tới” và “60 phút tới” không bị đổi thành mặc định 6 giờ. Dự báo vẫn chỉ trả các khoảng giờ trọn vẹn của nguồn bên ngoài; câu hỏi nhiều mốc hoặc không đủ một giờ được báo giới hạn.
+- Cảnh báo RAM áp dụng cả khi chỉ có sự kiện gầu hoặc một phần cảm biến hợp lệ. Context của báo cáo cập nhật đồng bộ khoảng thống kê, nguồn và trạng thái khí áp. Biệt danh múi giờ Việt Nam Asia/Saigon dùng cùng ranh giới ngày/tháng với Asia/Ho_Chi_Minh.
+
+Bộ kiểm thử hồi quy `backend/src/tests/ai-regressions.test.ts` được bổ sung từ các lỗi tái hiện được trước khi sửa. Việc kiểm thử không thay cho đánh giá dự báo ngoài thực địa hoặc bảo đảm mọi cách diễn đạt tiếng Việt đều đã được hỗ trợ.

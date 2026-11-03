@@ -2,6 +2,7 @@
 import { getBucketCalculationReply, getRainHazardReply } from './rain-assistant';
 import { getProjectKnowledgeReply, getWeatherFeatureReply } from './project-knowledge';
 import { resolveChatQuestion } from './chat-context';
+import { getCurrentObservationReply } from './current-observation';
 import type { StationProfile, WeatherFeatures, ForecastContext } from './ai-types';
 import type { ObservationReport } from './observation-report';
 export { getBucketCalculationReply } from './rain-assistant';
@@ -215,6 +216,8 @@ export function generateRainSenseReply(query: string, c: StationContext, history
   query = resolveChatQuestion(query, cleanChatHistory(history));
   const calculation = getBucketCalculationReply(query, c);
   if (calculation) return calculation;
+  const current = getCurrentObservationReply(query, c, now);
+  if (current) return current;
   const features = getWeatherFeatureReply(query, c);
   if (features) return features;
   const knowledge = getProjectKnowledgeReply(query, c);
@@ -225,10 +228,8 @@ export function generateRainSenseReply(query: string, c: StationContext, history
   const intro = `Theo báo cáo từ trạm ${c.stationName} (${c.deviceId}), cập nhật lúc ${time(c.observedAt, c.timezone)}, `;
   const status = fresh ? '' : 'Đây là bản ghi gần nhất; chưa xác nhận được thời tiết hiện tại vì trạm ngoại tuyến hoặc dữ liệu chưa đủ mới. ';
   const h = c.rainHistory;
-  const rainLabel = c.currentRainRateMmH === null ? '' : c.currentRainRateMmH < 2.5 ? 'mưa nhỏ'
-    : c.currentRainRateMmH < 10 ? 'mưa vừa' : c.currentRainRateMmH < 50 ? 'mưa to' : 'mưa rất to';
   const rainState = c.currentRainRateMmH === null ? 'chưa có dữ liệu cường độ mưa.'
-    : c.currentRainRateMmH > 0 ? `trạm ghi nhận ${rainLabel}, cường độ theo cửa sổ 5 phút là ${value(c.currentRainRateMmH, 'mm/h')}.`
+    : c.currentRainRateMmH > 0 ? `cường độ nước qua gầu quy đổi theo cửa sổ 5 phút là ${value(c.currentRainRateMmH, 'mm/h')}; chưa xác minh là mưa tự nhiên.`
     : 'chưa ghi nhận nhịp lật mới trong cửa sổ 5 phút của bản ghi; chưa thể khẳng định đã tạnh hoàn toàn.';
   const has = (pattern: RegExp) => pattern.test(q);
 

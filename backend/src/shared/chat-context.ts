@@ -1,5 +1,6 @@
 import type { ChatTurn } from './rainsense-ai';
 import { foldText } from './project-knowledge';
+import { hasFutureTime } from './time-request';
 
 const followUp = /^(?:vay|the|con|neu vay|thi)\b/;
 const hasDay = /hom nay|hom qua|(?:sang|chieu|toi|dem) nay|hien tai|luc nay|ngay mai|chieu mai|toi mai|sang mai|ngay kia|\bmai\b|ngay\s*\d|\d{1,2}[/-]\d{1,2}/;
@@ -12,7 +13,7 @@ function resolveAgainst(message: string, previous: string): string {
   const hardware = q.match(/bme280|a3144|hall|oled|esp32(?:-s3)?|mqtt/g);
   // An explicit new hardware topic must not inherit an earlier weather forecast.
   if (hardware?.length) return message;
-  if (isForecast.test(p) && !/hien tai|luc nay|dang do|hom qua/.test(q)) {
+  if ((isForecast.test(p) || hasFutureTime(p)) && !/hien tai|luc nay|bay gio|dang do|dang mua|hom qua|vua qua|gan nhat/.test(q)) {
     const day = hasDay.test(q) ? '' : /ngay kia/.test(p) ? 'ngày kia' : /\bmai\b/.test(p) ? 'ngày mai' : /hom nay|toi nay/.test(p) ? 'hôm nay' : '';
     const evening = /tối/i.test(message) && !/toi nay|toi mai|buoi toi|toi ngay/.test(q) ? ', buổi tối' : '';
     return `Dự báo ${message}${evening}${day ? ` (${day})` : ''}`;
@@ -27,10 +28,10 @@ function resolveAgainst(message: string, previous: string): string {
   ];
   const explicitTopic = topics.some((topic) => topic.pattern.test(q));
   const previousTopics = topics.filter((topic) => topic.pattern.test(p));
-  if (!explicitTopic && previousTopics.length > 1 && /gio|tieng|phut|hom nay|hom qua/.test(q)) return `${message} (${previousTopics.map((t) => t.label).join(', ')})`;
-  if (explicitTopic || previousTopics.length === 1) {
-    const range = /(?:\d+|mot)\s*(?:gio|tieng|phut|h\b)|hom qua|hom nay/.test(q) ? '' : previous.match(/(?:\d+|một)\s*(?:giờ|tiếng|phút)\s*(?:vừa qua|gần nhất|qua)?|hôm qua|hôm nay/i)?.[0] ?? '';
-    return `${message}${!explicitTopic ? ` (${previousTopics[0].label})` : ''}${range ? `, ${range}` : ''}`;
+  if (explicitTopic || previousTopics.length && /gio|tieng|phut|ngay|hom|hien tai|luc nay|trung binh|cao nhat|thap nhat|xu huong|sang|chieu|toi|dem/.test(q)) {
+    const explicitTime = /(?:\d+|mot|hai|ba|bon|nam|sau|bay|nua)\s*(?:gio|tieng|phut|h\b)|hom qua|hom nay|hien tai|luc nay|bay gio|\btu\s*\d|tuan|thang|(?:sang|chieu|toi|dem) nay/.test(q);
+    const range = explicitTime ? '' : previous.match(/(?:\d+|một|hai|ba|bốn|năm|sáu|bảy|nửa)\s*(?:giờ|tiếng|phút)(?:\s*rưỡi|\s*(?:và\s*)?\d+\s*phút)?\s*(?:vừa qua|gần nhất|qua)?|(?:buổi\s*)?(?:sáng|chiều|tối|đêm)\s*(?:nay|hôm qua)|hôm qua|hôm nay/i)?.[0] ?? '';
+    return `${message}${!explicitTopic ? ` (${previousTopics.map((t) => t.label).join(', ')})` : ''}${range ? `, ${range}` : ''}`;
   }
   if (/sang|chieu|buoi|gio|hom nay/.test(q) && /gau.*lat|so nhip/.test(p)) return `${message}, số lần gầu lật`;
   if (/sang|chieu|buoi|gio/.test(q) && /mua/.test(p)) return `${message}, lượng mưa`;

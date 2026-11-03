@@ -295,7 +295,7 @@ describe('Chat orchestration and read-only HTTP tools', () => {
       const json = await response.json();
       assert.equal(response.status, 200);
       assert.equal(json.data.context.currentTemp, null);
-      assert.equal(json.data.metadata.mode, 'fallback');
+      assert.equal(json.data.metadata.mode, 'analysis');
       assert.doesNotMatch(json.data.reply, /999/);
     } finally {
       env.GEMINI_API_KEY = oldKey;

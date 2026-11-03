@@ -69,7 +69,7 @@ describe('RainSense grounded responses', () => {
   it('distinguishes accumulated rainfall from the five-minute rate', () => {
     const text = reply('Hôm nay mưa nhiều nhưng hiện tại thì sao?', { ...live, todayRainMm: 30 });
     assert.match(text, /30.00 mm/);
-    assert.match(text, /chưa ghi nhận nhịp lật mới/);
+    assert.match(text, /chưa ghi nhận nhịp lật mới/i);
     assert.match(text, /chưa thể khẳng định đã tạnh hoàn toàn/);
     assert.doesNotMatch(text, /hiện đang mưa to/);
   });

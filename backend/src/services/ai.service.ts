@@ -11,6 +11,7 @@ import { resolveChatQuestion } from '../shared/chat-context';
 import type { ChatMetadata } from '../shared/ai-types';
 import { readRainLedger } from './rain-ledger';
 import { formatObservationReport, parseObservationRequest, type ObservationRequest, type ObservationReport } from '../shared/observation-report';
+import { getCurrentObservationReply } from '../shared/current-observation';
 import {
   buildRainSensePrompt, cleanChatHistory, generateRainSenseReply, getBucketCalculationReply, normalizeStationContext, normalizeStationTimezone,
   type ChatTurn, type StationContext
@@ -117,24 +118,28 @@ export class AiService {
     const finish = (reply: string, mode: ChatMetadata['mode'], model: string | null = null, fallbackReason?: ChatMetadata['fallbackReason']): ChatResult => {
       const notices: string[] = [];
       if (mode !== 'calculation' && context.dataQuality?.demo) notices.push('Các số đo trạm đang ở chế độ giả lập.');
-      if (mode !== 'calculation' && context.weatherFeatures?.sampleCount && context.dataQuality?.source !== 'postgresql') notices.push('Dữ liệu trạm có dùng bộ nhớ dự phòng; lịch sử có thể thiếu và không được bảo đảm lưu bền vững.');
+      if (mode !== 'calculation' && context.dataQuality?.source !== 'postgresql' && (context.observationReport || context.rainHistory || (context.weatherFeatures?.availableSampleCount ?? context.weatherFeatures?.sampleCount ?? 0) > 0)) notices.push('Dữ liệu trạm có dùng bộ nhớ dự phòng; lịch sử có thể thiếu và không được bảo đảm lưu bền vững.');
       return { reply: notices.length ? `${notices.join(' ')}\n\n${reply}` : reply, context,
         metadata: { mode, provider: mode === 'llm' ? 'gemini' : mode === 'forecast' ? 'open-meteo' : 'local', model,
           generatedAt: new Date().toISOString(), fallbackReason, sources: mode === 'calculation' || mode === 'analysis' ? [] : docs.map(knowledgeSource) } };
     };
-    const parsed = parseObservationRequest(searchQuery, context.timezone);
-    // Explicit hypothetical arithmetic retains priority; observation reports fetch their exact interval.
-    const suppliedArithmetic = /\d+(?:[.,]\d+)?\s*(?:mm|nhịp|tips?|lần)/i.test(searchQuery);
-    if (!suppliedArithmetic && parsed.status === 'invalid') return finish(parsed.message, 'analysis');
-    if (!suppliedArithmetic && parsed.status === 'ready') {
-      const { report, source } = await this.getObservationReport(deviceId, parsed.request);
+    const reportReply = async (request: ObservationRequest) => {
+      const { report, source } = await this.getObservationReport(deviceId, request);
       context.observationReport = report;
       context.weatherFeatures = report.weather;
+      context.pressureTrend = describePressureTrend(report.weather);
       if (source !== context.dataQuality!.source) context.dataQuality!.source = 'mixed';
       context.dataQuality!.historyTruncated = report.historyTruncated;
       return finish(formatObservationReport(report, context, searchQuery), 'analysis');
-    }
+    };
+    const parsed = parseObservationRequest(searchQuery, context.timezone);
+    // Explicit hypothetical arithmetic retains priority; observation reports fetch their exact interval.
     const calculation = getBucketCalculationReply(searchQuery, context);
+    const suppliedArithmetic = Boolean(calculation) && /\d+(?:[.,]\d+)?\s*(?:mm|nhịp|tips?|lần)/i.test(searchQuery);
+    if (!suppliedArithmetic && parsed.status === 'invalid') return finish(parsed.message, 'analysis');
+    if (!suppliedArithmetic && parsed.status === 'ready') {
+      return reportReply(parsed.request);
+    }
     if (calculation) return finish(suppliedArithmetic ? calculation : `${calculation}\n\nĐã loại các khoảng đánh dấu thử nước; nước thử hôm nay tách riêng ${context.testTodayMm ?? 0} mm. Nhịp ngoài thử chưa được xác minh là mưa tự nhiên.`, 'calculation');
     if (isForecastQuery(searchQuery)) {
       context.forecast = await forecastService.getForecast(searchQuery, context.profile!, context.timezone);
@@ -142,13 +147,13 @@ export class AiService {
       result.metadata.sources = [{ id: 'open-meteo', title: 'Open-Meteo — dự báo theo tọa độ', version: 'hourly', path: 'https://open-meteo.com/en/docs', url: 'https://open-meteo.com/en/docs' }];
       return result;
     }
+    const current = getCurrentObservationReply(searchQuery, context);
+    if (current) return finish(current, 'analysis');
     // Rain observations without an explicit interval also use deterministic provenance-aware reporting.
     if (/mưa|gầu|gàu/i.test(searchQuery) && /hiện tại|lúc này|tổng|bao nhiêu|ghi nhận|báo cáo|đang mưa/i.test(searchQuery) && !/là gì|nguyên lý|công thức|hoạt động|hiệu chuẩn|cảm biến|mạch|phụ kiện|cách tính|tại sao/i.test(searchQuery)) {
       const today = parseObservationRequest('lượng mưa hôm nay', context.timezone);
       if (today.status === 'ready') {
-        const { report } = await this.getObservationReport(deviceId, today.request);
-        context.observationReport = report;
-        return finish(formatObservationReport(report, context, searchQuery), 'analysis');
+        return reportReply(today.request);
       }
     }
     if (env.GEMINI_API_KEY) {

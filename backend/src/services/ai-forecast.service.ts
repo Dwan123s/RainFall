@@ -1,21 +1,22 @@
 import { env } from '../config/env';
 import type { ForecastContext, ForecastPeriod, StationProfile } from '../shared/ai-types';
 import type { StationContext } from '../shared/rainsense-ai';
-import { foldText } from '../shared/project-knowledge';
 import { getStartOfDayInTimezone } from '../shared/utils/time';
+import { normalizeTimePhrase, hasFutureTime, parseTimeDuration } from '../shared/time-request';
 
 const HOUR = 3600000;
 const TTL = 10 * 60000;
 const SOURCE = 'https://open-meteo.com/';
 
 export function isForecastQuery(query: string): boolean {
-  const q = foldText(query);
+  const q = normalizeTimePhrase(query);
   if (/la gi|nguyen ly|cach (?:xay|train|du bao)|huan luyen|hoat dong|hieu chuan/.test(q)) return false;
-  return /du bao|ngay mai|chieu mai|toi mai|sang mai|ngay kia|sap toi|gio toi|se mua|mua khong|khi nao.*mua|bao gio.*mua|xac suat.*mua/.test(q);
+  if (!/du bao/.test(q) && !hasFutureTime(q) && /hien tai|luc nay|bay gio|dang.*mua|hom qua|vua qua|gan nhat/.test(q)) return false;
+  return hasFutureTime(q) || /du bao|se mua|mua khong|khi nao.*mua|bao gio.*mua|xac suat.*mua/.test(q);
 }
 
 export function forecastWindow(query: string, timezone: string, now: Date) {
-  const q = foldText(query);
+  const q = normalizeTimePhrase(query);
   const start = getStartOfDayInTimezone(now, timezone).getTime();
   let from = now.getTime();
   let to = from + 6 * HOUR;
@@ -27,10 +28,10 @@ export function forecastWindow(query: string, timezone: string, now: Date) {
     from = Math.max(now.getTime(), day + (part?.[0] ?? 0) * HOUR);
     to = day + (part?.[1] ?? 24) * HOUR;
   }
-  const hours = q.match(/(?:trong|sau|du bao)?\s*(\d+)\s*gio\s*(?:toi|tiep theo)/);
-  if (hours) to = from + Number(hours[1]) * HOUR;
+  const duration = parseTimeDuration(q);
+  if (duration.status === 'ready') to = from + duration.milliseconds;
   // Do not answer a named date/week using the default six-hour forecast.
-  const unsupported = /tuan|thang|cuoi tuan|hom qua|hom kia|qua khu|ngay\s*\d|\d{1,2}[/-]\d{1,2}|luc\s*\d|\d+\s*ngay\s*toi|(?:sau|trong)\s*\d+\s*ngay|thu (?:hai|ba|tu|nam|sau|bay)|chu nhat/.test(q) || !Number.isFinite(to) || to <= from || to - now.getTime() > 72 * HOUR;
+  const unsupported = /tuan|thang|cuoi tuan|hom qua|hom kia|qua khu|ngay\s*\d|\d{1,2}[/-]\d{1,2}|luc\s*\d|\d+\s*ngay\s*toi|(?:sau|trong)\s*\d+\s*ngay|thu (?:hai|ba|tu|nam|sau|bay)|chu nhat/.test(q) || duration.status === 'invalid' || duration.status === 'ready' && (duration.milliseconds % HOUR !== 0 || /hom nay|toi nay|mai|ngay kia|buoi|\bsang\b|chieu/.test(q)) || !Number.isFinite(to) || to <= from || to - now.getTime() > 72 * HOUR;
   if (!Number.isFinite(to) || Math.abs(to) > 8640000000000000) to = now.getTime() + 6 * HOUR;
   return { from: new Date(from).toISOString(), to: new Date(to).toISOString(), unsupported };
 }
