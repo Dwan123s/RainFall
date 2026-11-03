@@ -10,8 +10,10 @@ export function summarizeRainWindow(
 ): RainWindow {
   const start = from.getTime();
   const end = to.getTime();
-  const selected = events.filter((e) => Date.parse(e.timestamp) >= start && (includeEnd ? Date.parse(e.timestamp) <= end : Date.parse(e.timestamp) < end) &&
+  const allSelected = events.filter((e) => Date.parse(e.timestamp) >= start && (includeEnd ? Date.parse(e.timestamp) <= end : Date.parse(e.timestamp) < end) &&
     Number.isFinite(e.rainfallMm) && e.rainfallMm >= 0 && Number.isSafeInteger(e.tipCount) && e.tipCount > 0);
+  const selected = allSelected.filter((e) => e.dataKind !== 'test');
+  const tests = allSelected.filter((e) => e.dataKind === 'test');
   const samples = telemetryTimes.map(Date.parse).filter(Number.isFinite).sort((a, b) => a - b);
   const before = samples.filter((t) => t <= start).pop();
   const after = samples.find((t) => t >= end);
@@ -20,6 +22,8 @@ export function summarizeRainWindow(
   const coverageComplete = end > start && points.length > 0 && Math.abs(points[0] - start) <= maxGapMs &&
     Math.abs(end - points[points.length - 1]) <= maxGapMs && points.every((t, i) => i === 0 || t - points[i - 1] <= maxGapMs);
   return { label, from: from.toISOString(), to: to.toISOString(), coverageComplete,
+    testRainfallMm: round(tests.reduce((s, e) => s + e.rainfallMm, 0)), testTips: tests.reduce((s, e) => s + e.tipCount, 0),
+    uncertainTimingEvents: allSelected.filter((e) => e.timingQuality !== 'device_tip').length,
     rainfallMm: round(selected.reduce((s, e) => s + e.rainfallMm, 0)),
     tips: selected.reduce((s, e) => s + e.tipCount, 0), calibrationFactors: [...new Set(selected.map((e) => e.calibrationFactor))] };
 }
@@ -43,7 +47,7 @@ export function summarizeRainHistory(
   };
   const sorted = events.filter((e) => {
     const t = Date.parse(e.timestamp);
-    return t >= start && t <= end && Number.isFinite(e.rainfallMm) && e.rainfallMm >= 0 && e.tipCount > 0;
+    return e.dataKind !== 'test' && t >= start && t <= end && Number.isFinite(e.rainfallMm) && e.rainfallMm >= 0 && e.tipCount > 0;
   }).sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
   const episodes: RainHistory['episodes'] = [];
   const gaps: RainHistory['gaps'] = [];

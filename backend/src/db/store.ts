@@ -12,6 +12,8 @@ import { getPrismaClient, isDbConnected } from './prisma';
 import { logger } from '../utils/logger';
 import bcrypt from 'bcryptjs';
 import { recordReadSource } from './read-diagnostics';
+import { randomUUID } from 'node:crypto';
+import type { RainTestPeriod } from '../shared/types/rain';
 
 // In-memory persistent caches for standalone/demo operation or fallback
 class InMemoryStore {
@@ -19,6 +21,7 @@ class InMemoryStore {
   configs: Map<string, DeviceConfigurationRecord> = new Map();
   measurements: MeasurementRecord[] = [];
   rainEvents: RainEventRecord[] = [];
+  rainTestPeriods: RainTestPeriod[] = [];
   alertRules: AlertRuleRecord[] = [];
   alerts: AlertRecord[] = [];
   commands: Map<string, DeviceCommandRecord> = new Map();
@@ -516,6 +519,10 @@ export const dataStore = {
     timestamp: string;
     tipCount: number;
     calibrationFactor: number;
+    intervalFrom?: string;
+    timingQuality?: RainEventRecord['timingQuality'];
+    dataKind?: RainEventRecord['dataKind'];
+    testNote?: string;
   }): Promise<RainEventRecord | null> {
     if (this.isMessageProcessed(data.eventId)) {
       logger.warn({ eventId: data.eventId }, 'Duplicate rain event dropped');
@@ -534,6 +541,10 @@ export const dataStore = {
       tipCount: data.tipCount,
       calibrationFactor: data.calibrationFactor,
       rainfallMm,
+      intervalFrom: data.intervalFrom,
+      timingQuality: data.timingQuality ?? 'legacy',
+      dataKind: data.dataKind,
+      testNote: data.testNote,
       createdAt: nowIso
     };
 
@@ -546,7 +557,11 @@ export const dataStore = {
             timestamp: new Date(record.timestamp),
             tipCount: record.tipCount,
             calibrationFactor: record.calibrationFactor,
-            rainfallMm: record.rainfallMm
+            rainfallMm: record.rainfallMm,
+            intervalFrom: record.intervalFrom ? new Date(record.intervalFrom) : null,
+            timingQuality: record.timingQuality,
+            dataKind: record.dataKind ?? 'unverified',
+            testNote: record.testNote
           }
         });
       } catch (err) {
@@ -556,6 +571,35 @@ export const dataStore = {
 
     memoryStore.rainEvents.push(record);
     return record;
+  },
+
+  async getRainTestPeriods(deviceId: string): Promise<RainTestPeriod[]> {
+    if (isDbConnected()) {
+      const rows = await getPrismaClient().rainTestPeriod.findMany({ where: { deviceId }, orderBy: { from: 'desc' } });
+      recordReadSource('postgresql');
+      return rows.map((r) => ({ ...r, from: r.from.toISOString(), to: r.to.toISOString(), createdAt: r.createdAt.toISOString() }));
+    }
+    recordReadSource('memory');
+    return memoryStore.rainTestPeriods.filter((r) => r.deviceId === deviceId);
+  },
+
+  async saveRainTestPeriod(data: Omit<RainTestPeriod, 'id' | 'createdAt'>): Promise<RainTestPeriod> {
+    const record = { ...data, id: randomUUID(), createdAt: new Date().toISOString() };
+    if (isDbConnected()) {
+      await getPrismaClient().rainTestPeriod.create({ data: { ...record, from: new Date(data.from), to: new Date(data.to), createdAt: new Date(record.createdAt) } });
+    } else memoryStore.rainTestPeriods.push(record);
+    return record;
+  },
+
+  async endRainTestPeriod(deviceId: string, id: string, to: string): Promise<void> {
+    if (isDbConnected()) {
+      const result = await getPrismaClient().rainTestPeriod.updateMany({ where: { id, deviceId, from: { lt: new Date(to) }, to: { gt: new Date(to) } }, data: { to: new Date(to) } });
+      if (!result.count) throw new Error('Phiên thử không tồn tại hoặc đã kết thúc');
+    } else {
+      const period = memoryStore.rainTestPeriods.find((p) => p.id === id && p.deviceId === deviceId && p.from < to && p.to > to);
+      if (!period) throw new Error('Phiên thử không tồn tại hoặc đã kết thúc');
+      period.to = to;
+    }
   },
 
   async getRainEvents(deviceId: string, from?: string, to?: string): Promise<RainEventRecord[]> {
@@ -587,6 +631,10 @@ export const dataStore = {
           tipCount: r.tipCount,
           calibrationFactor: r.calibrationFactor,
           rainfallMm: r.rainfallMm,
+          intervalFrom: r.intervalFrom?.toISOString(),
+          timingQuality: r.timingQuality as RainEventRecord['timingQuality'],
+          dataKind: r.dataKind as RainEventRecord['dataKind'],
+          testNote: r.testNote ?? undefined,
           createdAt: r.createdAt.toISOString()
         }));
       } catch (err) {

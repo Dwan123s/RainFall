@@ -5,11 +5,9 @@ import { emitTelemetryUpdate, emitNewAlert, emitDeviceStatus, emitRainUpdate } f
 import { logger } from '../../utils/logger';
 import { env } from '../../config/env';
 
-// Track last known tip count and reset sequence per device to detect bucket tip increments & hardware resets
-const lastKnownTips = new Map<string, number>();
-const lastKnownResetSeq = new Map<string, number>();
+import { advanceRainCounter, withRainLock } from '../../services/rain-counter';
 
-export async function handleTelemetryMessage(topic: string, rawPayload: Buffer | string) {
+async function processTelemetryMessage(topic: string, rawPayload: Buffer | string, simulated = false) {
   try {
     const rawStr = rawPayload.toString();
     const json = JSON.parse(rawStr);
@@ -20,7 +18,7 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
     const deviceId = (json.deviceId || json.device_id || stationIdFromTopic).trim();
 
     // Temperature (IOT_MQTT_TLS.ino sends temperature_c)
-    let temperature: number = 0;
+    let temperature: number = -999;
     if (typeof json.temperature === 'number') {
       temperature = json.temperature;
     } else if (typeof json.temperature_c === 'number') {
@@ -28,7 +26,7 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
     }
 
     // Humidity (IOT_MQTT_TLS.ino sends humidity_pct)
-    let humidity: number = 0;
+    let humidity: number = -999;
     if (typeof json.humidity === 'number') {
       humidity = json.humidity;
     } else if (typeof json.humidity_pct === 'number') {
@@ -36,7 +34,7 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
     }
 
     // Pressure (IOT_MQTT_TLS.ino sends pressure_hpa)
-    let pressure: number = 1013.25;
+    let pressure: number = -999;
     if (typeof json.pressure === 'number') {
       pressure = json.pressure;
     } else if (typeof json.pressure_hpa === 'number') {
@@ -46,7 +44,7 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
     // Rain tips and rainfall (firmware default calibration: 0.64mm per tip)
     const totalRainTips: number = json.totalRainTips ?? json.tip_count ?? 0;
     const rainRate: number = json.rainRate ?? 0;
-    const resetSeq: number = json.rain_reset_sequence ?? json.sequenceNumber ?? 0;
+    const resetSeq: number = json.rain_reset_sequence;
 
     // RSSI & Uptime
     const wifiRssi: number = json.wifiRssi ?? json.wifi_rssi_dbm ?? -60;
@@ -74,7 +72,6 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
       logger.debug({ messageId }, 'Duplicate telemetry message ignored');
       return;
     }
-    dataStore.markMessageProcessed(messageId);
 
     // Auto-create/ensure device in database
     await dataStore.upsertDevice({
@@ -87,6 +84,8 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
     // Update Device status
     await dataStore.updateDeviceStatus(deviceId, true, timestamp, wifiRssi, uptime);
     emitDeviceStatus(deviceId, true, timestamp, wifiRssi);
+
+    const previousMeasurement = await dataStore.getLatestMeasurement(deviceId);
 
     // Save measurement to database
     const saved = await dataStore.saveMeasurement({
@@ -130,49 +129,15 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
     if (stationIdFromTopic && !targets.includes(stationIdFromTopic)) targets.push(stationIdFromTopic);
     if (env.DEFAULT_STATION_ID && !targets.includes(env.DEFAULT_STATION_ID)) targets.push(env.DEFAULT_STATION_ID);
 
-    // Check for HARDWARE RESET (User pressed BOOT button on ESP32 or rain_reset_sequence incremented)
-    const prevResetSeq = lastKnownResetSeq.get(deviceId);
-    const prevTips = lastKnownTips.get(deviceId);
-    const isHardwareReset =
-      (prevResetSeq !== undefined && resetSeq > prevResetSeq) ||
-      (prevTips !== undefined && prevTips > 0 && totalRainTips === 0) ||
-      (totalRainTips === 0 && resetSeq > 0);
-
-    if (isHardwareReset) {
-      logger.info({ deviceId, resetSeq, prevResetSeq }, 'Hardware rain reset signal received! Purging previous rain events...');
+    const change = typeof (json.totalRainTips ?? json.tip_count) === 'number' ? advanceRainCounter(deviceId, { tips: totalRainTips, timestamp, uptime, reset: resetSeq, bootId: json.bootId }, previousMeasurement) : null;
+    if (change) {
       for (const tid of targets) {
-        await dataStore.clearRainEvents(tid);
-        const resetStats = await rainfallService.getStatistics(tid);
-        emitRainUpdate(tid, null, resetStats);
-      }
-      lastKnownTips.set(deviceId, 0);
-      lastKnownResetSeq.set(deviceId, resetSeq);
-    } else {
-      // Check if rain tips incremented to register a RainEvent
-      let increment = 0;
-      if (prevTips !== undefined && totalRainTips > prevTips) {
-        increment = totalRainTips - prevTips;
-      }
-
-      if (increment > 0) {
-        for (const tid of targets) {
-          const savedEvent = await dataStore.saveRainEvent({
-            deviceId: tid,
-            eventId: `rain-${tid}-${messageId}-${totalRainTips}`,
-            timestamp,
-            tipCount: increment,
-            calibrationFactor: 0.64
-          });
-          if (savedEvent) {
-            const stats = await rainfallService.getStatistics(tid);
-            const isPrimary = (tid === env.DEFAULT_STATION_ID || (!env.DEFAULT_STATION_ID && tid === deviceId));
-            emitRainUpdate(tid, savedEvent, stats, isPrimary);
-          }
-        }
-      }
-      lastKnownTips.set(deviceId, totalRainTips);
-      if (prevResetSeq === undefined) {
-        lastKnownResetSeq.set(deviceId, resetSeq);
+        const config = await dataStore.getConfig(tid);
+        const savedEvent = await dataStore.saveRainEvent({ deviceId: tid, eventId: 'rain-' + tid + '-' + messageId + '-' + totalRainTips,
+          timestamp, tipCount: change.increment, calibrationFactor: config?.rainMmPerTip ?? 0.64,
+          intervalFrom: change.intervalFrom, timingQuality: change.timingQuality,
+          dataKind: simulated ? 'test' : undefined, testNote: simulated ? 'Dữ liệu giả lập' : undefined });
+        if (savedEvent) emitRainUpdate(tid, savedEvent, await rainfallService.getStatistics(tid), tid === env.DEFAULT_STATION_ID);
       }
     }
 
@@ -190,13 +155,14 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
         uptime,
         totalRainTips,
         rainRate,
-        sequenceNumber: resetSeq,
+        sequenceNumber: json.sequenceNumber ?? 0,
         bootId: json.bootId || 'boot-esp32',
         firmwareVersion: '1.0.0'
       });
 
       // Evaluate alert rules
-      const alert = await alertService.evaluateTelemetry(deviceId, saved, rainRate);
+      const rainStats = await rainfallService.getStatistics(deviceId);
+      const alert = await alertService.evaluateTelemetry(deviceId, saved, rainStats.currentRateMmH);
       if (alert) {
         emitNewAlert(alert);
       }
@@ -217,4 +183,11 @@ export async function handleTelemetryMessage(topic: string, rawPayload: Buffer |
     const error = err as Error;
     logger.error({ err: error.message, topic }, 'Error processing telemetry MQTT message');
   }
+}
+
+export async function handleTelemetryMessage(topic: string, payload: Buffer | string, simulated = false) {
+  let id: string;
+  try { const json = JSON.parse(payload.toString()); id = String(json.deviceId || json.device_id || topic.split('/')[1] || env.DEFAULT_STATION_ID).trim(); }
+  catch { return processTelemetryMessage(topic, payload, simulated); }
+  return withRainLock(id, () => processTelemetryMessage(topic, payload, simulated));
 }

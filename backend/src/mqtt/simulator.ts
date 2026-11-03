@@ -55,7 +55,7 @@ export class StationSimulator {
 
     await handleRainEventMessage(
       `weather/${this.deviceId}/rain`,
-      JSON.stringify(eventPayload)
+      JSON.stringify(eventPayload), true
     );
 
     return { totalRainTips: this.totalRainTips, tipCount };
@@ -95,7 +95,7 @@ export class StationSimulator {
           cumulativeTips: this.totalRainTips,
           durationMs: 5000
         };
-        await handleRainEventMessage(`weather/${this.deviceId}/rain`, JSON.stringify(rainPayload));
+        await handleRainEventMessage(`weather/${this.deviceId}/rain`, JSON.stringify(rainPayload), true);
       } else {
         // 5% chance to start a short rain shower of 4 ticks
         if (Math.random() < 0.05) {
@@ -122,7 +122,7 @@ export class StationSimulator {
 
       await handleTelemetryMessage(
         `weather/${this.deviceId}/telemetry`,
-        JSON.stringify(telemetryPayload)
+        JSON.stringify(telemetryPayload), true
       );
     } catch (err: unknown) {
       const error = err as Error;

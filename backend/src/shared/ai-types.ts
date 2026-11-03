@@ -16,15 +16,28 @@ export interface KnowledgeSource {
   url?: string;
 }
 
+export interface MeasurementSummary {
+  min: number;
+  max: number;
+  avg: number;
+  sampleCount?: number;
+  firstObservedAt?: string;
+  lastObservedAt?: string;
+  firstValue?: number;
+  lastValue?: number;
+  coverageComplete?: boolean;
+}
+
 export interface WeatherFeatures {
   from: string;
   to: string;
   sampleCount: number;
   invalidSampleCount: number;
   coverageComplete: boolean;
-  temperature: { min: number; max: number; avg: number } | null;
-  humidity: { min: number; max: number; avg: number } | null;
-  pressure: { min: number; max: number; avg: number } | null;
+  temperature: MeasurementSummary | null;
+  humidity: MeasurementSummary | null;
+  pressure: MeasurementSummary | null;
+  availableSampleCount?: number;
   pressureDelta3hHpa: number | null;
   temperatureDelta1hC: number | null;
 }
@@ -53,7 +66,7 @@ export interface ForecastContext {
 }
 
 export interface ChatMetadata {
-  mode: 'llm' | 'fallback' | 'calculation' | 'forecast';
+  mode: 'llm' | 'fallback' | 'calculation' | 'forecast' | 'analysis';
   provider: 'gemini' | 'local' | 'open-meteo';
   model: string | null;
   generatedAt: string;

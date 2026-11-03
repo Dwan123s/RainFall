@@ -9,6 +9,8 @@ import { forecastService, forecastReply, isForecastQuery } from './ai-forecast.s
 import { searchProjectDocs, knowledgeSource, knowledgeDocumentCount } from '../shared/project-knowledge';
 import { resolveChatQuestion } from '../shared/chat-context';
 import type { ChatMetadata } from '../shared/ai-types';
+import { readRainLedger } from './rain-ledger';
+import { formatObservationReport, parseObservationRequest, type ObservationRequest, type ObservationReport } from '../shared/observation-report';
 import {
   buildRainSensePrompt, cleanChatHistory, generateRainSenseReply, getBucketCalculationReply, normalizeStationContext, normalizeStationTimezone,
   type ChatTurn, type StationContext
@@ -37,7 +39,7 @@ export class AiService {
     const from = new Date(Math.min(start.getTime() - 300000, rolling24hStart));
     const maxGap = Math.max(120000, (config?.mqttInterval ?? 30) * 3000);
     const [events, measurements] = await Promise.all([
-      dataStore.getRainEvents(deviceId, new Date(Math.min(start.getTime() - 300000, rolling24hStart)).toISOString(), now.toISOString()),
+      readRainLedger(deviceId, new Date(Math.min(start.getTime() - 300000, rolling24hStart)).toISOString(), now.toISOString()),
       dataStore.getMeasurements(deviceId, { from: from.toISOString(), to: now.toISOString(), limit: 20000 })
     ]);
     const features = calculateWeatherFeatures(measurements, new Date(rolling24hStart), now, maxGap);
@@ -48,7 +50,7 @@ export class AiService {
     const rainHistory = summarizeRainHistory(events, measurements.map((m) => m.timestamp), now, timezone,
       Math.max(120000, (config?.mqttInterval ?? 30) * 3000));
     const hasData = latest !== null || events.length > 0;
-    const windowMm = events.filter((e) => Date.parse(e.timestamp) >= now.getTime() - 300000)
+    const windowMm = events.filter((e) => e.dataKind !== 'test' && Date.parse(e.timestamp) >= now.getTime() - 300000)
       .reduce((sum, e) => sum + e.rainfallMm, 0);
     return normalizeStationContext({
       deviceId, stationName: device?.name || `Trạm ${deviceId}`, timezone,
@@ -58,9 +60,10 @@ export class AiService {
       heatIndex: temp !== null && humid !== null ? calculateHeatIndex(temp, humid) : null,
       // Preserve persisted event amounts when the hardware counter resets or calibration changes.
       todayRainMm: hasData ? rainHistory.recordedTotalMm : null,
-      totalTipsToday: hasData ? events.filter((e) => Date.parse(e.timestamp) >= start.getTime()).reduce((s, e) => s + e.tipCount, 0) : null,
+      totalTipsToday: hasData ? rainHistory.recordedTips : null,
+      testTodayMm: Math.round(events.filter((e) => e.dataKind === 'test' && Date.parse(e.timestamp) >= start.getTime()).reduce((s, e) => s + e.rainfallMm, 0) * 100) / 100,
       currentRainRateMmH: hasData ? Math.round(windowMm * 12 * 10) / 10 : null,
-      rolling24hRainMm: hasData ? Math.round(events.filter((e) => Date.parse(e.timestamp) >= rolling24hStart)
+      rolling24hRainMm: hasData ? Math.round(events.filter((e) => e.dataKind !== 'test' && Date.parse(e.timestamp) >= rolling24hStart)
         .reduce((sum, e) => sum + e.rainfallMm, 0) * 100) / 100 : null,
       calibrationFactor: config?.rainMmPerTip ?? null,
       pressureTrend: describePressureTrend(features),
@@ -89,6 +92,23 @@ export class AiService {
       units: { temperature: '°C', humidity: '%', pressure: 'hPa' }, features, records };
   }
 
+  async getObservationReport(deviceId: string, request: ObservationRequest) {
+    const from = new Date(request.from);
+    const to = new Date(request.to);
+    if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || to <= from || to.getTime() - from.getTime() > 7 * 86400000 || to.getTime() > Date.now() + 60000) throw new Error('Khoảng báo cáo chưa hợp lệ');
+    const { value, source } = await withReadDiagnostics(async () => {
+      const [records, events, config] = await Promise.all([
+        dataStore.getMeasurements(deviceId, { from: request.from, to: request.to, limit: 20000 }), readRainLedger(deviceId, request.from, request.to), dataStore.getConfig(deviceId)
+      ]);
+      const maxGap = Math.max(120000, (config?.mqttInterval ?? 30) * 3000);
+      const report: ObservationReport = { ...request, generatedAt: new Date().toISOString(), weather: calculateWeatherFeatures(records, from, to, maxGap),
+        rain: summarizeRainWindow(events, records.map((m) => m.timestamp), from, to, request.label, maxGap, request.includeEnd !== false),
+        historyTruncated: records.length >= 20000 };
+      return report;
+    });
+    return { report: value, source };
+  }
+
   async chat(userMessage: string, history: ChatMessage[] = [], deviceId = env.DEFAULT_STATION_ID): Promise<ChatResult> {
     const context = await this.getLiveContext(deviceId);
     const validHistory = cleanChatHistory(history);
@@ -100,27 +120,36 @@ export class AiService {
       if (mode !== 'calculation' && context.weatherFeatures?.sampleCount && context.dataQuality?.source !== 'postgresql') notices.push('Dữ liệu trạm có dùng bộ nhớ dự phòng; lịch sử có thể thiếu và không được bảo đảm lưu bền vững.');
       return { reply: notices.length ? `${notices.join(' ')}\n\n${reply}` : reply, context,
         metadata: { mode, provider: mode === 'llm' ? 'gemini' : mode === 'forecast' ? 'open-meteo' : 'local', model,
-          generatedAt: new Date().toISOString(), fallbackReason, sources: mode === 'calculation' ? [] : docs.map(knowledgeSource) } };
+          generatedAt: new Date().toISOString(), fallbackReason, sources: mode === 'calculation' || mode === 'analysis' ? [] : docs.map(knowledgeSource) } };
     };
+    const parsed = parseObservationRequest(searchQuery, context.timezone);
+    // Explicit hypothetical arithmetic retains priority; observation reports fetch their exact interval.
+    const suppliedArithmetic = /\d+(?:[.,]\d+)?\s*(?:mm|nhịp|tips?|lần)/i.test(searchQuery);
+    if (!suppliedArithmetic && parsed.status === 'invalid') return finish(parsed.message, 'analysis');
+    if (!suppliedArithmetic && parsed.status === 'ready') {
+      const { report, source } = await this.getObservationReport(deviceId, parsed.request);
+      context.observationReport = report;
+      context.weatherFeatures = report.weather;
+      if (source !== context.dataQuality!.source) context.dataQuality!.source = 'mixed';
+      context.dataQuality!.historyTruncated = report.historyTruncated;
+      return finish(formatObservationReport(report, context, searchQuery), 'analysis');
+    }
     const calculation = getBucketCalculationReply(searchQuery, context);
-    if (calculation) return finish(calculation, 'calculation');
+    if (calculation) return finish(suppliedArithmetic ? calculation : `${calculation}\n\nĐã loại các khoảng đánh dấu thử nước; nước thử hôm nay tách riêng ${context.testTodayMm ?? 0} mm. Nhịp ngoài thử chưa được xác minh là mưa tự nhiên.`, 'calculation');
     if (isForecastQuery(searchQuery)) {
       context.forecast = await forecastService.getForecast(searchQuery, context.profile!, context.timezone);
       const result = finish(forecastReply(context.forecast, context), 'forecast');
       result.metadata.sources = [{ id: 'open-meteo', title: 'Open-Meteo — dự báo theo tọa độ', version: 'hourly', path: 'https://open-meteo.com/en/docs', url: 'https://open-meteo.com/en/docs' }];
       return result;
     }
-    const environmentQuestion = /nhiệt độ|độ ẩm|khí áp|áp suất/i.test(searchQuery);
-    const requestedHours = searchQuery.match(/(\d+)\s*giờ\s*(?:qua|vừa qua|gần nhất)/i);
-    if (environmentQuestion && (requestedHours || /hôm qua/i.test(searchQuery))) {
-      const end = /hôm qua/i.test(searchQuery) ? getStartOfDayInTimezone(new Date(), context.timezone) : new Date();
-      const hours = requestedHours ? Number(requestedHours[1]) : 24;
-      if (hours < 1 || hours > 168) return finish('Có thể truy vấn chuỗi môi trường từ 1 giờ đến tối đa 7 ngày. Bạn hãy chọn khoảng nằm trong giới hạn này.', 'fallback');
-      const series = await this.getMeasurementSeries(deviceId, new Date(end.getTime() - hours * 3600000), end);
-      context.weatherFeatures = series.features;
-      context.pressureTrend = describePressureTrend(series.features);
-      if (series.source !== context.dataQuality!.source) context.dataQuality!.source = 'mixed';
-      context.dataQuality!.historyTruncated = series.historyTruncated;
+    // Rain observations without an explicit interval also use deterministic provenance-aware reporting.
+    if (/mưa|gầu|gàu/i.test(searchQuery) && /hiện tại|lúc này|tổng|bao nhiêu|ghi nhận|báo cáo|đang mưa/i.test(searchQuery) && !/là gì|nguyên lý|công thức|hoạt động|hiệu chuẩn|cảm biến|mạch|phụ kiện|cách tính|tại sao/i.test(searchQuery)) {
+      const today = parseObservationRequest('lượng mưa hôm nay', context.timezone);
+      if (today.status === 'ready') {
+        const { report } = await this.getObservationReport(deviceId, today.request);
+        context.observationReport = report;
+        return finish(formatObservationReport(report, context, searchQuery), 'analysis');
+      }
     }
     if (env.GEMINI_API_KEY) {
       const result = await this.callGeminiApi(userMessage, validHistory, context, env.GEMINI_API_KEY, docs);

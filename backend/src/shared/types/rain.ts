@@ -26,12 +26,25 @@ export interface RainEventRecord {
   calibrationFactor: number; // mm per tip configured at time of event
   rainfallMm: number; // tipCount * calibrationFactor
   createdAt: string;
+  intervalFrom?: string;
+  timingQuality?: 'device_tip' | 'telemetry_interval' | 'legacy';
+  dataKind?: 'test' | 'unverified';
+  testNote?: string;
+}
+
+export interface RainTestPeriod {
+  id: string; deviceId: string; from: string; to: string; note: string; createdBy: string; createdAt: string;
 }
 
 /**
  * Aggregated Rainfall Statistics
  */
 export interface RainfallStatistics {
+  testTodayMm?: number;
+  testTipsToday?: number;
+  recordedTodayMm?: number;
+  recordedTipsToday?: number;
+  classification?: string;
   todayMm: number;
   yesterdayMm: number;
   rolling24hMm: number;

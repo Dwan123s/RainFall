@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
+import { ensureRainSchema } from './rain-schema';
 
 let prismaInstance: PrismaClient | null = null;
 let isPrismaConnected = false;
@@ -106,6 +107,7 @@ export async function testPrismaConnection(): Promise<boolean> {
     }
 
     // Only set connected if tables actually exist
+    if (verifiedTableCount > 0) await ensureRainSchema(client);
     isPrismaConnected = verifiedTableCount > 0;
 
     if (isAiven) {

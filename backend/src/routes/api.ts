@@ -8,6 +8,7 @@ import { demoController } from '../controllers/demo.controller';
 import { aiController } from '../controllers/ai.controller';
 import { systemController } from '../controllers/system.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { rainAuditController } from '../controllers/rain-audit.controller';
 
 export const apiRouter = Router();
 
@@ -44,6 +45,10 @@ apiRouter.get('/devices/:id/statistics', telemetryController.getEnvironmentalSum
 apiRouter.get('/devices/:id/rainfall', telemetryController.getRainfallStats);
 apiRouter.get('/devices/:id/hourly-rain', telemetryController.getHourlyRain);
 apiRouter.get('/devices/:id/daily-rain', telemetryController.getDailyRain);
+apiRouter.get('/devices/:id/rain-audit', rainAuditController.list);
+apiRouter.post('/devices/:id/rain-test-periods', authenticate, rainAuditController.create);
+apiRouter.post('/devices/:id/rain-test-periods/all-recorded', authenticate, rainAuditController.markAllRecorded);
+apiRouter.patch('/devices/:id/rain-test-periods/:periodId/stop', authenticate, rainAuditController.stop);
 
 // Alerts & Notification Center
 apiRouter.get('/alerts', alertController.getAlerts);

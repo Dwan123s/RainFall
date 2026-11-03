@@ -87,12 +87,29 @@ model RainEvent {
   calibrationFactor Float    // mm per tip at time of event
   rainfallMm        Float    // tipCount * calibrationFactor
   createdAt         DateTime @default(now())
+  intervalFrom      DateTime?
+  timingQuality     String   @default("legacy") // device_tip, telemetry_interval, legacy
+  dataKind          String   @default("unverified") // unverified, test (simulation)
+  testNote          String?
 
   device            Device   @relation(fields: [deviceId], references: [deviceId], onDelete: Cascade)
 
   @@index([deviceId, timestamp])
   @@index([timestamp])
   @@map("rain_events")
+}
+
+model RainTestPeriod {
+  id        String   @id @default(uuid())
+  deviceId  String
+  from      DateTime
+  to        DateTime
+  note      String
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@index([deviceId, from, to])
+  @@map("rain_test_periods")
 }
 
 model AlertRule {

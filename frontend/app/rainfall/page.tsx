@@ -22,7 +22,7 @@ import {
 import { api } from '@/lib/api';
 import { useTheme } from '@/app/providers';
 import { formatDateTimeVi, formatTimeVi } from '@/lib/utils';
-import { getRainRateCategoryVi } from '@/lib/weather-calc';
+import { RainDataAudit } from '@/components/RainDataAudit';
 
 export default function RainfallPage() {
   const { resolvedTheme } = useTheme();
@@ -39,13 +39,15 @@ export default function RainfallPage() {
   // Fetch hourly rain
   const { data: hourlyRain = [] } = useQuery({
     queryKey: ['hourlyRain', 'RS-ESP32S3-01'],
-    queryFn: () => api.getHourlyRain('RS-ESP32S3-01', 24)
+    queryFn: () => api.getHourlyRain('RS-ESP32S3-01', 24),
+    refetchInterval: 10000
   });
 
   // Fetch daily rain (7 days)
   const { data: dailyRain = [] } = useQuery({
     queryKey: ['dailyRain', 'RS-ESP32S3-01'],
-    queryFn: () => api.getDailyRain('RS-ESP32S3-01', 7)
+    queryFn: () => api.getDailyRain('RS-ESP32S3-01', 7),
+    refetchInterval: 10000
   });
 
   if (isLoading) {
@@ -57,7 +59,6 @@ export default function RainfallPage() {
     );
   }
 
-  const rainCategory = getRainRateCategoryVi(stats?.currentRateMmH ?? 0);
 
   const tooltipStyle = isDark
     ? { backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: '#F1F5F9' }
@@ -83,7 +84,7 @@ export default function RainfallPage() {
         <div className="flex items-center gap-2">
           <span className="px-3 py-1 rounded-full text-xs font-semibold bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5">
             <Waves className="w-3.5 h-3.5" />
-            <span>{rainCategory.labelVi}</span>
+            <span>{(stats?.currentRateMmH ?? 0) > 0 ? 'Có nước qua gầu — chưa xác minh mưa' : 'Chưa ghi nhận nhịp ngoài thử nước gần đây'}</span>
           </span>
           <span className="px-3 py-1 rounded-full text-xs font-mono bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
             Hiệu chuẩn: {stats?.calibrationFactor ?? 0.64} mm/lần lật
@@ -91,6 +92,7 @@ export default function RainfallPage() {
         </div>
       </div>
 
+      <p className="text-sm text-muted-foreground">Tổng đã loại thử nước: {stats?.todayMm?.toFixed(2) ?? '0.00'} mm. Nước thử hôm nay: {stats?.testTodayMm?.toFixed(2) ?? '0.00'} mm ({stats?.testTipsToday ?? 0} nhịp). Tổng ghi nhận gồm thử: {stats?.recordedTodayMm?.toFixed(2) ?? '0.00'} mm. Phần còn lại chưa xác minh là mưa tự nhiên.</p>
       {/* A. THỐNG KÊ LƯỢNG MƯA TÍCH LŨY */}
       <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm transition-colors">
@@ -219,6 +221,7 @@ export default function RainfallPage() {
         </div>
       </section>
 
+      <RainDataAudit deviceId="RS-ESP32S3-01" />
       {/* C. INTERACTIVE RAINFALL CHARTS */}
       <section className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4 transition-colors">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

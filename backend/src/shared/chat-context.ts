@@ -23,12 +23,13 @@ function resolveAgainst(message: string, previous: string): string {
   }
   const topics = [
     { pattern: /nhiet do/, label: 'nhiệt độ' }, { pattern: /do am/, label: 'độ ẩm' },
-    { pattern: /khi ap|ap suat/, label: 'khí áp' }
+    { pattern: /khi ap|ap suat/, label: 'khí áp' }, { pattern: /luong mua/, label: 'lượng mưa' }
   ];
   const explicitTopic = topics.some((topic) => topic.pattern.test(q));
   const previousTopics = topics.filter((topic) => topic.pattern.test(p));
+  if (!explicitTopic && previousTopics.length > 1 && /gio|tieng|phut|hom nay|hom qua/.test(q)) return `${message} (${previousTopics.map((t) => t.label).join(', ')})`;
   if (explicitTopic || previousTopics.length === 1) {
-    const range = /\d+\s*gio|hom qua|hom nay/.test(q) ? '' : previous.match(/\d+\s*giờ\s*(?:vừa qua|gần nhất|qua)|hôm qua|hôm nay/i)?.[0] ?? '';
+    const range = /(?:\d+|mot)\s*(?:gio|tieng|phut|h\b)|hom qua|hom nay/.test(q) ? '' : previous.match(/(?:\d+|một)\s*(?:giờ|tiếng|phút)\s*(?:vừa qua|gần nhất|qua)?|hôm qua|hôm nay/i)?.[0] ?? '';
     return `${message}${!explicitTopic ? ` (${previousTopics[0].label})` : ''}${range ? `, ${range}` : ''}`;
   }
   if (/sang|chieu|buoi|gio|hom nay/.test(q) && /gau.*lat|so nhip/.test(p)) return `${message}, số lần gầu lật`;

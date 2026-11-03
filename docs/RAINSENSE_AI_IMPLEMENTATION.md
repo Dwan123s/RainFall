@@ -120,3 +120,25 @@ npm run build
 Các bài kiểm thử API AI dùng mô hình giả lập có kiểm soát và dữ liệu tổng hợp chỉ trong fixture. Chúng kiểm tra luồng, tính toán, nguồn, lỗi và giới hạn; không chứng minh chất lượng ngôn ngữ của Gemini thật hoặc độ chính xác dự báo tại trạm thực địa.
 
 GitHub Actions trong `.github/workflows/ci.yml` chạy cùng các bước trên khi push `main`, mở pull request hoặc chạy thủ công. Sau `npm ci`, workflow sinh Prisma Client từ schema backend trước khi kiểm tra TypeScript; bước này không kết nối hay thay đổi database. Workflow dùng quyền đọc repository, không dùng khóa production và không tự deploy. Nó cũng kiểm tra file chỉ mục kiến thức đã được cập nhật trong commit. Frontend build tự biên dịch lại kho kiến thức để bản triển khai không dùng tài liệu cũ.
+
+## Báo cáo theo khoảng và phân biệt nước thử (03/11/2026)
+
+- Nhận “1 tiếng”, “một tiếng”, “1 giờ”, “1h”, “60 phút”, hôm nay/hôm qua và khoảng giờ trong cùng ngày. Truy vấn tối đa 7 ngày. Khoảng tương lai, không hợp lệ hoặc mốc chưa rõ được yêu cầu làm rõ; không tự thay bằng tổng 24 giờ.
+- `metadata.mode=analysis`: backend tính trung bình các bản đo, min/max, giá trị cuối, số bản đo và mốc thực có cho từng đại lượng. Thiếu một cảm biến không loại dữ liệu tốt của cảm biến khác. Không dùng điều kiện đủ 3 giờ khí áp để từ chối một báo cáo 1 giờ. Khi thiếu độ phủ vẫn báo phần ghi nhận, không coi đó là trung bình đại diện cả khoảng.
+- Dashboard và chatbot dùng `readRainLedger`, cộng số mm đã lưu từng sự kiện. Sửa cả WebSocket trên trang overview: không thay tổng ngày bằng bộ đếm phần cứng và không chặn tổng giảm khi nhãn thử được áp dụng. Biểu đồ theo múi giờ trạm; giờ/ngày là cửa sổ [from,to), cửa sổ đang chốt nhận cả sự kiện tại mốc chốt.
+- `RainEvent.intervalFrom` và `timingQuality`: `device_tip` là một nhịp có giờ thiết bị; `telemetry_interval` là số nhịp tăng trong khoảng bản tin, `legacy` là dữ liệu cũ chưa biết giờ từng nhịp. Không thể dựng lại chính xác giờ từng nhịp từ ảnh hoặc bộ đếm tổng. Lô sát ranh giới giờ/ngày có thể còn bất định, phải nói rõ.
+- Không xóa lịch sử trong seed khởi động hoặc khi bộ đếm ESP32 reset. Bản tin MQTT được lưu trước khi đánh dấu trùng; `sequenceNumber` thông thường không còn bị hiểu thành `rain_reset_sequence`. Dùng hàng đợi theo trạm và một bộ đối chiếu counter cho luồng nhịp riêng/telemetry để tránh cộng hai lần.
+- Các nhãn `RainTestPeriod` lưu riêng, có người tạo và ghi chú. Chồng khoảng thử thì tách cả lô, giữ nguyên sự kiện gốc. Mặc định ngoài thử là **chưa xác minh mưa tự nhiên**. Không được gọi nước thử là mưa to, không đưa vào báo cáo/dự báo thời tiết; dữ liệu giả lập cũng được giữ nhãn sau khi tắt DEMO.
+
+Trang `/rainfall` có bảng đối chiếu tối đa 100 sự kiện cuối của truy vấn (tối đa 2.000 sự kiện), mốc giờ Việt Nam và phân loại. Quản trị đăng nhập bằng tài khoản backend để chọn khoảng thử cũ hoặc bắt đầu phiên thử 1 giờ, kết thúc sớm khi xong. Phiên đặt qua API không kéo dài quá 2 giờ tương lai. Nút “Toàn bộ đã ghi là thử nước” đánh dấu toàn bộ dữ liệu **đến mốc chốt**, không tự đánh dấu vô hạn các nhịp tương lai.
+
+API bổ sung:
+
+- `GET /api/devices/:id/rain-audit?from=ISO&to=ISO`: sổ đối chiếu, nguồn lưu và các khoảng thử; tối đa 7 ngày.
+- `POST /api/devices/:id/rain-test-periods`: `{from,to,note}`; JWT ADMIN.
+- `PATCH /api/devices/:id/rain-test-periods/:periodId/stop`: kết thúc phiên; JWT ADMIN.
+- `POST /api/devices/:id/rain-test-periods/all-recorded`: đánh dấu toàn bộ lịch sử đến lúc chốt; JWT ADMIN và bắt buộc đọc thành công PostgreSQL. Không báo lưu bền vững nếu chỉ có RAM.
+
+Khi khởi động, `ensureRainSchema` chỉ thêm các cột còn thiếu và bảng nhãn/index bằng SQL idempotent; không chạy reset hay nhận mất dữ liệu. Tài khoản DB cần quyền ALTER/CREATE cho lần nâng cấp. Lỗi đọc nhãn không được coi như không có nhãn. Khi DB chưa kết nối, chế độ RAM luôn được báo rõ; không coi RAM là lưu trữ bền vững.
+
+Các bài kiểm thử mới dùng số đo tổng hợp trong fixture và xác minh bằng API HTTP cục bộ; không xả nước hoặc giả lập dữ liệu vào trạm thật.

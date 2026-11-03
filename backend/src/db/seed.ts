@@ -6,8 +6,7 @@ import { logger } from '../utils/logger';
 export async function seedInitialData() {
   logger.info('Initializing production configuration for ESP32-S3 hardware...');
 
-  // 1. Purge any stale/mock historical telemetry, rain events, and sample alerts
-  await dataStore.clearTelemetryData();
+  // Startup is idempotent. Keep measurements, rain events and test labels across deployments.
 
   // 2. Provision Admin User
   const salt = await bcrypt.genSalt(10);
@@ -74,5 +73,5 @@ export async function seedInitialData() {
     });
   }
 
-  logger.info({ deviceId }, 'ESP32-S3 station initialized with clean database state (Zero fake data).');
+  logger.info({ deviceId }, 'ESP32-S3 station initialized; recorded history preserved.');
 }

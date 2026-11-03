@@ -3,34 +3,42 @@ import type { WeatherFeatures } from '../shared/ai-types';
 import { classifyPressureTrend } from '../shared/utils/weather-calc';
 
 const round = (n: number) => Math.round(n * 100) / 100;
+const validValue = (m: MeasurementRecord, key: 'temperature' | 'humidity' | 'pressure') => {
+  const [min, max] = key === 'temperature' ? [-40, 85] : key === 'humidity' ? [0, 100] : [300, 1100];
+  return Number.isFinite(m[key]) && m[key] >= min && m[key] <= max;
+};
 const valid = (m: MeasurementRecord) => Number.isFinite(Date.parse(m.timestamp)) &&
-  Number.isFinite(m.temperature) && m.temperature >= -40 && m.temperature <= 85 &&
-  Number.isFinite(m.humidity) && m.humidity >= 0 && m.humidity <= 100 &&
-  Number.isFinite(m.pressure) && m.pressure >= 300 && m.pressure <= 1100;
+  validValue(m, 'temperature') && validValue(m, 'humidity') && validValue(m, 'pressure');
 
 export function calculateWeatherFeatures(records: MeasurementRecord[], from: Date, to: Date, maxGapMs: number): WeatherFeatures {
-  const inRange = records.filter((m) => Date.parse(m.timestamp) >= from.getTime() && Date.parse(m.timestamp) <= to.getTime());
+  const inRange = records.filter((m) => Date.parse(m.timestamp) >= from.getTime() && Date.parse(m.timestamp) <= to.getTime())
+    .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
   const samples = inRange.filter(valid).sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
-  const covers = (since: number) => {
-    const selected = samples.filter((m) => Date.parse(m.timestamp) >= since);
+  const covers = (since: number, candidates = samples) => {
+    const selected = candidates.filter((m) => Date.parse(m.timestamp) >= since);
     return selected.length >= 2 && Date.parse(selected[0].timestamp) - since <= maxGapMs &&
       to.getTime() - Date.parse(selected.at(-1)!.timestamp) <= maxGapMs &&
       selected.every((m, i) => i === 0 || Date.parse(m.timestamp) - Date.parse(selected[i - 1].timestamp) <= maxGapMs);
   };
   const stats = (key: 'temperature' | 'humidity' | 'pressure') => {
-    if (!samples.length) return null;
-    const values = samples.map((m) => m[key]);
-    return { min: Math.min(...values), max: Math.max(...values), avg: round(values.reduce((a, b) => a + b, 0) / values.length) };
+    const selected = inRange.filter((m) => validValue(m, key));
+    if (!selected.length) return null;
+    const values = selected.map((m) => m[key]);
+    return { min: Math.min(...values), max: Math.max(...values), avg: round(values.reduce((a, b) => a + b, 0) / values.length),
+      sampleCount: selected.length, firstObservedAt: selected[0].timestamp, lastObservedAt: selected.at(-1)!.timestamp,
+      firstValue: values[0], lastValue: values.at(-1)!, coverageComplete: covers(from.getTime(), selected) };
   };
   const delta = (key: 'temperature' | 'pressure', hours: number) => {
     const target = to.getTime() - hours * 3600000;
-    if (target < from.getTime() || !covers(target)) return null;
-    const nearest = samples.reduce((best, m) => Math.abs(Date.parse(m.timestamp) - target) < Math.abs(Date.parse(best.timestamp) - target) ? m : best);
+    const selected = inRange.filter((m) => validValue(m, key));
+    if (target < from.getTime() || !covers(target, selected)) return null;
+    const nearest = selected.reduce((best, m) => Math.abs(Date.parse(m.timestamp) - target) < Math.abs(Date.parse(best.timestamp) - target) ? m : best);
     if (Math.abs(Date.parse(nearest.timestamp) - target) > maxGapMs) return null;
-    return round(samples.at(-1)![key] - nearest[key]);
+    return round(selected.at(-1)![key] - nearest[key]);
   };
   return { from: from.toISOString(), to: to.toISOString(), sampleCount: samples.length,
     invalidSampleCount: inRange.length - samples.length, coverageComplete: covers(from.getTime()),
+    availableSampleCount: inRange.filter((m) => ['temperature', 'humidity', 'pressure'].some((key) => validValue(m, key as 'temperature' | 'humidity' | 'pressure'))).length,
     temperature: stats('temperature'), humidity: stats('humidity'), pressure: stats('pressure'),
     pressureDelta3hHpa: delta('pressure', 3), temperatureDelta1hC: delta('temperature', 1) };
 }

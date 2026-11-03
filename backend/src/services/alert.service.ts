@@ -58,7 +58,7 @@ export class AlertService {
           const currentRate = rainRate ?? measurement.rainRate ?? 0;
           if (rule.comparison === 'GREATER_THAN' && currentRate > rule.threshold) {
             triggered = true;
-            alertMessage = `Cảnh báo mưa lớn! Cường độ mưa đạt ${currentRate} mm/h (vượt ngưỡng ${rule.threshold} mm/h)`;
+            alertMessage = `Lưu lượng nước qua gầu quy đổi đạt ${currentRate} mm/h (vượt ngưỡng ${rule.threshold} mm/h), đã loại khoảng thử được đánh dấu; chưa xác minh mưa tự nhiên`;
           }
           break;
       }

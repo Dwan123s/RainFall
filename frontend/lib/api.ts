@@ -46,6 +46,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  login: (email: string, password: string) => request<{ token: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  getRainAudit: (id: string, from?: string, to?: string) => request<any>(`/api/devices/${id}/rain-audit${from && to ? `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}` : ''}`),
+  markRainTest: (id: string, token: string, period: { from: string; to: string; note: string }) => request<any>(`/api/devices/${id}/rain-test-periods`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: JSON.stringify(period) }),
+  stopRainTest: (id: string, token: string, periodId: string) => request<any>(`/api/devices/${id}/rain-test-periods/${periodId}/stop`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } }),
+  markAllRecordedAsTest: (id: string, token: string) => request<any>(`/api/devices/${id}/rain-test-periods/all-recorded`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }),
   getDashboardSummary: (deviceId?: string) =>
     request<any>(`/api/dashboard/summary${deviceId ? `?deviceId=${deviceId}` : ''}`),
 

@@ -79,7 +79,7 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
   });
   const latestMetadata = [...messages].reverse().find((m) => m.metadata)?.metadata;
   const localKnowledgeOnly = latestMetadata?.mode === 'fallback' || !latestMetadata && contextData?.capabilities?.languageModelConfigured === false;
-  const modeLabel = latestMetadata?.mode === 'llm' ? 'AI kết nối' : latestMetadata?.mode === 'calculation' ? 'Tính toán' : latestMetadata?.mode === 'forecast' ? 'Nguồn dự báo' : latestMetadata?.mode === 'fallback' ? 'Dự phòng' : localKnowledgeOnly ? 'Kiến thức dự án' : 'Sẵn sàng';
+  const modeLabel = latestMetadata?.mode === 'llm' ? 'AI kết nối' : latestMetadata?.mode === 'calculation' ? 'Tính toán' : latestMetadata?.mode === 'analysis' ? 'Báo cáo số đo' : latestMetadata?.mode === 'forecast' ? 'Nguồn dự báo' : latestMetadata?.mode === 'fallback' ? 'Dự phòng' : localKnowledgeOnly ? 'Kiến thức dự án' : 'Sẵn sàng';
   const observedAge = contextData?.observedAt ? Date.now() - Date.parse(contextData.observedAt) : NaN;
   const fresh = contextData?.dataQuality?.fresh ?? (contextData?.isOnline && Number.isFinite(observedAge) && observedAge >= -60000 && observedAge <= 300000);
 
@@ -330,7 +330,7 @@ export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: st
                   </div>
                   {msg.metadata && (
                     <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
-                      {msg.metadata.mode === 'llm' ? 'AI kết nối' : msg.metadata.mode === 'calculation' ? 'Tính bằng công thức' : msg.metadata.mode === 'forecast' ? 'Dự báo theo nguồn khí tượng' : 'Trả lời dự phòng'}
+                      {msg.metadata.mode === 'llm' ? 'AI kết nối' : msg.metadata.mode === 'calculation' ? 'Tính bằng công thức' : msg.metadata.mode === 'analysis' ? 'Phân tích số đo đã ghi nhận' : msg.metadata.mode === 'forecast' ? 'Dự báo theo nguồn khí tượng' : 'Trả lời dự phòng'}
                       {msg.metadata.mode === 'fallback' && msg.metadata.fallbackReason && <span> · {msg.metadata.fallbackReason === 'missing_api_key' ? 'AI chưa được cấu hình' : msg.metadata.fallbackReason === 'model_unavailable' ? 'Dịch vụ AI tạm thời gián đoạn' : 'Chưa kết nối được máy chủ'}</span>}
                       {msg.metadata.sources.length > 0 && (
                         <details className="mt-1">

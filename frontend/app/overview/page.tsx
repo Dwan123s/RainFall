@@ -35,8 +35,7 @@ import { useTheme } from '@/app/providers';
 import { formatDateTimeVi, formatTimeVi } from '@/lib/utils';
 import {
   classifyPressureTrend,
-  getHumidityStatusVi,
-  getRainRateCategoryVi
+  getHumidityStatusVi
 } from '@/lib/weather-calc';
 
 export default function OverviewPage() {
@@ -76,6 +75,7 @@ export default function OverviewPage() {
     const triggerDebouncedRefetch = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] });
         queryClient.invalidateQueries({ queryKey: ['hourlyRain'] });
         queryClient.invalidateQueries({ queryKey: ['rainfall'] });
         queryClient.invalidateQueries({ queryKey: ['telemetrySeries'] });
@@ -87,29 +87,11 @@ export default function OverviewPage() {
       queryClient.setQueryData(['dashboardSummary'], (prev: any) => {
         if (!prev) return prev;
 
-        // Immediate local sync for rain tips to prevent lag or jumping
-        const tips = data.measurement.totalRainTips;
-        const prevRainfall = prev.rainfall;
-        const currentTips = prevRainfall?.totalTipsToday ?? 0;
-        const factor = prevRainfall?.calibrationFactor || 0.64;
-
-        let updatedRainfall = prevRainfall;
-        if (typeof tips === 'number') {
-          // Monotonic guard: only update if tips increment or reset to 0
-          if (tips >= currentTips || tips === 0) {
-            updatedRainfall = {
-              ...prevRainfall,
-              totalTipsToday: tips,
-              todayMm: Number((tips * factor).toFixed(2)),
-              currentRateMmH: data.measurement.rainRate !== undefined ? data.measurement.rainRate : (prevRainfall?.currentRateMmH ?? 0)
-            };
-          }
-        }
 
         return {
           ...prev,
           latestMeasurement: data.measurement,
-          rainfall: updatedRainfall,
+          rainfall: prev.rainfall,
           device: {
             ...prev.device,
             wifiRssi: data.measurement.wifiRssi,
@@ -126,13 +108,6 @@ export default function OverviewPage() {
       if (!data || !data.statistics) return;
       queryClient.setQueryData(['dashboardSummary'], (prev: any) => {
         if (!prev) return prev;
-        const incomingTips = data.statistics.totalTipsToday ?? 0;
-        const currentTips = prev.rainfall?.totalTipsToday ?? 0;
-
-        // Monotonic guard: never allow incoming tips to decrease unless an intentional reset (0) occurred
-        if (incomingTips < currentTips && incomingTips !== 0) {
-          return prev;
-        }
 
         return {
           ...prev,
@@ -167,7 +142,6 @@ export default function OverviewPage() {
   const rainfall = summary?.rainfall;
   const health = summary?.systemHealth;
 
-  const rainCategory = getRainRateCategoryVi(rainfall?.currentRateMmH ?? 0);
   const humidityStatus = getHumidityStatusVi(latest?.humidity ?? 50);
   const pressureTrend = classifyPressureTrend(latest?.pressure ?? 1013);
 
@@ -591,7 +565,7 @@ export default function OverviewPage() {
               <span>Tổng hợp & Thống kê lượng mưa</span>
             </h3>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 font-medium">
-              {rainCategory.labelVi}
+              {(rainfall?.currentRateMmH ?? 0) > 0 ? 'Có nước qua gầu' : 'Chưa có nhịp gần đây'}
             </span>
           </div>
 
@@ -639,12 +613,13 @@ export default function OverviewPage() {
             </div>
           </div>
 
+          <p className="text-xs text-muted-foreground">Nước thử hôm nay: {rainfall?.testTodayMm?.toFixed(2) ?? '0.00'} mm, đã tách khỏi tổng ngày. Các số còn lại chưa xác minh là mưa tự nhiên.</p>
           {/* Active Rain Shower Box */}
           {rainfall?.currentRainEvent?.active ? (
             <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-xs flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-cyan-500 animate-ping" />
-                <span className="font-semibold text-cyan-700 dark:text-cyan-300">Đang có mưa:</span>
+                <span className="font-semibold text-cyan-700 dark:text-cyan-300">Có nước qua gầu:</span>
                 <span className="text-slate-700 dark:text-slate-300">
                   Tích lũy {rainfall.currentRainEvent.totalMm.toFixed(2)} mm trong {rainfall.currentRainEvent.durationMinutes} phút
                 </span>
@@ -653,7 +628,7 @@ export default function OverviewPage() {
           ) : (
             <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/20 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-              <span>Hiện tại không ghi nhận đợt mưa nào đang diễn ra.</span>
+              <span>Chưa ghi nhận nhịp ngoài thử nước gần đây; chưa kết luận thời tiết.</span>
             </div>
           )}
         </section>
