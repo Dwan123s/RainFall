@@ -1,14 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CloudRain,
   Droplets,
   TrendingUp,
   BarChart3,
   Waves,
-  Zap
+  Zap,
+  RotateCcw
 } from 'lucide-react';
 import {
   BarChart,
@@ -25,9 +26,32 @@ import { formatDateTimeVi, formatTimeVi } from '@/lib/utils';
 import { RainDataAudit } from '@/components/RainDataAudit';
 
 export default function RainfallPage() {
+  const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const [chartMode, setChartMode] = useState<'hourly' | 'daily'>('hourly');
+  const [isResettingRain, setIsResettingRain] = useState(false);
+
+  const handleResetRain = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn đặt lại lượng mưa và số nhịp lật gàu về 0 không?')) {
+      return;
+    }
+    setIsResettingRain(true);
+    try {
+      await api.resetRainOnly('RS-ESP32S3-01');
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['rainfall'] }),
+        queryClient.invalidateQueries({ queryKey: ['hourlyRain'] }),
+        queryClient.invalidateQueries({ queryKey: ['dailyRain'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboardSummary'] })
+      ]);
+      alert('Đã đặt lại lượng mưa và số nhịp lật về 0 thành công!');
+    } catch (err: any) {
+      alert(err?.message || 'Có lỗi xảy ra khi đặt lại lượng mưa');
+    } finally {
+      setIsResettingRain(false);
+    }
+  };
 
   // Fetch rainfall statistics
   const { data: stats, isLoading } = useQuery({
@@ -89,6 +113,16 @@ export default function RainfallPage() {
           <span className="px-3 py-1 rounded-full text-xs font-mono bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
             Hiệu chuẩn: {stats?.calibrationFactor ?? 0.64} mm/lần lật
           </span>
+          <button
+            type="button"
+            onClick={handleResetRain}
+            disabled={isResettingRain}
+            title="Đặt lại lượng mưa về 0"
+            className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 active:scale-95 transition-all border border-rose-500/20 disabled:opacity-50 cursor-pointer shadow-xs"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${isResettingRain ? 'animate-spin' : ''}`} />
+            <span>Reset lượng mưa</span>
+          </button>
         </div>
       </div>
 

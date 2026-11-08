@@ -10,7 +10,7 @@
 #include <PubSubClient.h>
 #include <time.h>
 
-// --- CẤU HÌNH DANH SÁCH MẠNG WI-FI ---
+// --- CẤU HÌNH DANH SÁCH NHIỀU MẠNG WI-FI (GIỮ NGUYÊN 100%) ---
 struct WifiCredential {
   const char *ssid;
   const char *password;
@@ -19,6 +19,7 @@ struct WifiCredential {
 const WifiCredential WIFI_NETWORKS[] = {
   {"FPT", "29082006"},         // Mạng FPT
   {"P104", "fptxinchao"},      // Mạng P104 
+  {"Life's Good Big Tits", "11111111"},
 };
 const size_t NUM_WIFI_NETWORKS = sizeof(WIFI_NETWORKS) / sizeof(WIFI_NETWORKS[0]);
 
@@ -62,7 +63,7 @@ const uint32_t WIFI_RETRY_INTERVAL_MS = 10000;
 const uint32_t MQTT_RETRY_MIN_MS = 5000;
 const uint32_t MQTT_RETRY_MAX_MS = 60000;
 
-// Queue lưu bản đo mới nhất
+// Queue lưu bản đo telemetry giữa loop() và FreeRTOS Task
 struct TelemetrySnapshot {
   int tips;
   float temperature;
@@ -79,10 +80,7 @@ uint32_t rainResetSequence = 0;
 void startNetwork();
 void captureTelemetry();
 void networkTask(void *parameter);
-bool networkConfigReady();
-void jsonNumber(float value, char *buffer, size_t capacity);
-bool publishTelemetry(PubSubClient &mqtt, const TelemetrySnapshot &sample,
-                      const char *clientId);
+bool publishTelemetry(PubSubClient &mqtt, const TelemetrySnapshot &sample, const char *clientId);
 
 // --- CẤU HÌNH PHẦN CỨNG ---
 #define SCREEN_WIDTH 128
@@ -105,10 +103,10 @@ Adafruit_BMP085 bmp;
 DHT dht(DHT_PIN, DHT_TYPE);
 
 // --- BIẾN ĐO MƯA ---
-const float RAINFALL_PER_TIP = 0.64;          // 0.64 mm nước / lần lật
+const float RAINFALL_PER_TIP = 0.64;         // 0.64 mm nước / lần lật
 volatile int tipCount = 0;
 volatile unsigned long lastTipTime = 0;
-const unsigned long DEBOUNCE_DELAY = 200;    // Khóa chống dội 200ms
+const unsigned long DEBOUNCE_DELAY = 200;   // Khóa chống dội 200ms
 
 int lastDisplayedTipCount = 0;
 
@@ -129,7 +127,7 @@ void IRAM_ATTR onHallInterrupt() {
   }
 }
 
-// Đọc tipCount an toàn (tắt ngắt trong lúc đọc)
+// Đọc tipCount an toàn (tắt ngắt tạm thời trong lúc đọc biến volatile)
 int getTipCount() {
   noInterrupts();
   int v = tipCount;
@@ -140,12 +138,10 @@ int getTipCount() {
 // --- HÀM LƯU & ĐỌC FLASH NVS ĐỘC LẬP ---
 void saveTipsToFlash(int tips) {
   Preferences p;
-  if (p.begin("rain_station", false)) { // Mở chế độ Read/Write
+  if (p.begin("rain_station", false)) {
     p.putInt("tips", tips);
-    p.end(); // Đóng handle ngay lập tức để ép ghi vĩnh viễn vào Flash
-    Serial.printf("[FLASH] >>> DA GHI VA DONG FLASH: %d lan <<<\n", tips);
-  } else {
-    Serial.println("[FLASH LOI] Khong the mo vung nho Flash de ghi!");
+    p.end();
+    Serial.printf("[FLASH] Da ghi vao Flash: %d lan lat\n", tips);
   }
 }
 
@@ -155,9 +151,7 @@ int loadTipsFromFlash() {
   if (p.begin("rain_station", false)) {
     saved = p.getInt("tips", 0);
     p.end();
-    Serial.printf("[FLASH] >>> DA KHOI PHUC TU FLASH: %d lan <<<\n", saved);
-  } else {
-    Serial.println("[FLASH LOI] Khong the mo vung nho Flash de doc!");
+    Serial.printf("[FLASH] Khoi phuc tu Flash: %d lan lat\n", saved);
   }
   return saved;
 }
@@ -169,37 +163,46 @@ bool initBMP();
 
 void setup() {
   Serial.begin(115200);
-  Serial.setTxTimeoutMs(0);
+  Serial.setTxTimeoutMs(0); // CHỐNG TREO ESP32-S3 KHI KHÔNG KẾT NỐI SERIAL MONITOR
 
-  unsigned long startWait = millis();
-  while (!Serial && (millis() - startWait < 1000)) {
-    delay(10);
-  }
-
-  // 1. Khởi tạo Bus I2C (SDA=GPIO8, SCL=GPIO9, tốc độ 100kHz)
-  Wire.begin(I2C_SDA, I2C_SCL, 100000);
-  delay(50);
-
+  // 1. Cấu hình chân ngắt gàu lật & nút Boot
   pinMode(HALL_PIN, INPUT_PULLUP);
   pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(HALL_PIN), onHallInterrupt, FALLING);
 
-  // Khởi tạo OLED
-  display.begin(OLED_I2C_ADDR, true);
+  // 2. Khởi tạo Bus I2C (SDA=GPIO8, SCL=GPIO9, 100kHz) với timeout 50ms chống treo bus
+  Wire.begin(I2C_SDA, I2C_SCL, 100000);
+  Wire.setTimeOut(50);
+  delay(100);
 
-  // 2. Khôi phục số lần lật từ Flash NVS
+  // 3. Khởi tạo màn hình OLED
+  display.begin(OLED_I2C_ADDR, true);
+  // Khóa lại cấu hình chân I2C đảm bảo chân luôn là GPIO 8 & 9
+  Wire.begin(I2C_SDA, I2C_SCL, 100000);
+  Wire.setTimeOut(50);
+
+  display.clearDisplay();
+  display.setTextColor(SH110X_WHITE);
+  display.setTextSize(1);
+  display.setTextWrap(false);
+
+  // 4. Khôi phục số lần lật từ bộ nhớ Flash
   tipCount = loadTipsFromFlash();
   lastDisplayedTipCount = tipCount;
 
-  // 3. Khởi tạo DHT11 & BMP180
+  // 5. Khởi tạo DHT11 & BMP180
   dht.begin();
-  delay(50);
   initBMP();
 
+  // Khóa lại bus I2C sau khi initBMP để OLED luôn hoạt động ổn định
+  Wire.begin(I2C_SDA, I2C_SCL, 100000);
+  Wire.setTimeOut(50);
+
+  // Đọc thông số ban đầu và hiển thị lập tức lên màn hình OLED
   readEnvSensors();
   updateOledDisplay(tipCount);
 
-  // 4. Khởi động mạng WiFi & MQTT (chạy trên FreeRTOS task nền)
+  // 6. Khởi động luồng mạng FreeRTOS ngầm
   startNetwork();
 }
 
@@ -222,11 +225,11 @@ void loop() {
     updateOledDisplay(getTipCount());
   }
 
-  // 3. NÚT BOOT (trên ESP32-S3): NHẤN GIỮ 3 GIÂY ĐỂ RESET LƯỢNG MƯA
+  // 3. NÚT BOOT (GPIO 0): PHẢI NHẤN GIỮ 3 GIÂY MỚI RESET MƯA
   static unsigned long btnPressStartTime = 0;
   static bool isBtnPressed = false;
 
-  if (currentTime > 4000) { // Bỏ qua 4s đầu sau cắm nguồn chống chạm giật nhầm
+  if (currentTime > 6000) { 
     bool btn = digitalRead(BOOT_BUTTON_PIN);
     if (btn == LOW) {
       if (!isBtnPressed) {
@@ -246,13 +249,17 @@ void loop() {
 }
 
 bool initBMP() {
+  Wire.begin(I2C_SDA, I2C_SCL, 100000);
+  Wire.setTimeOut(50);
   if (bmp.begin()) {
     bmpFound = true;
     Serial.println("[BMP180] Tim thay va khoi tao thanh cong tai dia chi 0x77!");
+    Wire.begin(I2C_SDA, I2C_SCL, 100000);
     return true;
   }
   bmpFound = false;
-  Serial.println("[BMP180] Chua tim thay BMP180! Kiem tra day SDA/SCL/VCC/GND.");
+  Wire.begin(I2C_SDA, I2C_SCL, 100000);
+  Serial.println("[BMP180] Chua tim thay BMP180!");
   return false;
 }
 
@@ -268,30 +275,31 @@ void readEnvSensors() {
     dhtFailCount = 0;
   } else {
     dhtFailCount++;
+    // Chỉ báo lỗi nếu mất đọc liên tục quá 4 lần (>10 giây) để tránh chớp nháy màn hình
     if (dhtFailCount > 4) {
       dhtFound = false;
     }
   }
 
-  // 2. Đọc BMP180 (Áp suất khí quyển & Nhiệt độ độ phân giải cao)
+  // 2. Đọc BMP180 (Áp suất khí quyển & Nhiệt độ chính xác cao)
   if (!bmpFound) {
     initBMP();
   }
 
   if (bmpFound) {
-    float p = bmp.readPressure() / 100.0F; // Đổi Pa -> hPa
+    float p = bmp.readPressure() / 100.0F; // Pa -> hPa
     float t_bmp = bmp.readTemperature();
     if (!isnan(p) && p > 300.0 && p < 1200.0) {
       currentPress = p;
       if (!isnan(t_bmp) && t_bmp > -40.0 && t_bmp < 85.0) {
-        currentTemp = t_bmp; // Ưu tiên nhiệt độ chuẩn xác cao từ BMP180
+        currentTemp = t_bmp; // Ưu tiên nhiệt độ mượt mà từ BMP180
       }
     } else {
       bmpFound = false;
     }
   }
 
-  // Dự phòng nhiệt độ từ DHT11 nếu không có BMP180
+  // Dự phòng: Nếu mất BMP180 nhưng DHT11 vẫn đọc tốt, lấy nhiệt độ từ DHT11
   if (!bmpFound && dhtFound && !isnan(t_dht) && t_dht > -40.0 && t_dht < 85.0) {
     currentTemp = t_dht;
   }
@@ -317,6 +325,11 @@ void updateOledDisplay(int tips) {
   float rainMm = tips * RAINFALL_PER_TIP;
 
   display.clearDisplay();
+  // ĐẢM BẢO CHỮ LUÔN MÀU TRẮNG VÀ CỠ 1 ĐỂ KHÔNG BỊ MẤT CHỮ TRÊN MÀN HÌNH ĐEN
+  display.setTextColor(SH110X_WHITE);
+  display.setTextSize(1);
+  display.setTextWrap(false);
+
   display.drawRect(0, 0, 128, 64, SH110X_WHITE);
 
   // Tiêu đề
@@ -349,7 +362,7 @@ void updateOledDisplay(int tips) {
 
   display.drawLine(0, 42, 128, 42, SH110X_WHITE);
 
-  // Lượng mưa (trái) và số lần lật (phải)
+  // Lượng mưa và số lần lật
   display.setCursor(5, 48);
   display.printf("Mua:%.1fmm", rainMm);
   display.setCursor(82, 48);
@@ -358,26 +371,19 @@ void updateOledDisplay(int tips) {
   display.display();
 }
 
-// ===================== PHẦN WI-FI MULTI / MQTT =====================
-
-bool networkConfigReady() {
-  return (NUM_WIFI_NETWORKS > 0 && WIFI_NETWORKS[0].ssid[0] != '\0' &&
-          MQTT_HOST[0] != '\0' && MQTT_USERNAME[0] != '\0');
-}
+// ===================== PHẦN WI-FI MULTI / MQTT (FREERTOS TASK) =====================
 
 void startNetwork() {
-  if (!networkConfigReady()) {
-    Serial.println("[NET] Thong tin mang chua day du. Tram tiep tuc chay offline.");
+  if (NUM_WIFI_NETWORKS == 0 || WIFI_NETWORKS[0].ssid[0] == '\0') {
+    Serial.println("[NET] Chua cau hinh Wi-Fi. Tram tiep tuc chay offline.");
     return;
   }
   telemetryQueue = xQueueCreate(1, sizeof(TelemetrySnapshot));
   if (telemetryQueue == nullptr) return;
 
   captureTelemetry();
-  if (xTaskCreate(networkTask, "wifi_mqtt", 12288, nullptr, 1, nullptr) != pdPASS) {
-    vQueueDelete(telemetryQueue);
-    telemetryQueue = nullptr;
-  }
+  // Khởi chạy task ngầm xử lý mạng trên FreeRTOS
+  xTaskCreate(networkTask, "wifi_mqtt", 12288, nullptr, 1, nullptr);
 }
 
 void captureTelemetry() {
@@ -388,6 +394,7 @@ void captureTelemetry() {
   if (!firstSample && uint32_t(now - lastCapture) < 100) return;
   firstSample = false;
   lastCapture = now;
+
   TelemetrySnapshot sample;
   sample.tips = getTipCount();
   sample.temperature = currentTemp;
@@ -400,38 +407,37 @@ void captureTelemetry() {
   xQueueOverwrite(telemetryQueue, &sample);
 }
 
-void jsonNumber(float value, char *buffer, size_t capacity) {
-  if (isfinite(value)) {
-    snprintf(buffer, capacity, "%.2f", static_cast<double>(value));
-  } else {
-    snprintf(buffer, capacity, "null");
-  }
-}
+bool publishTelemetry(PubSubClient &mqtt, const TelemetrySnapshot &sample, const char *clientId) {
+  char tempStr[16], humStr[16], pressStr[16];
 
-bool publishTelemetry(PubSubClient &mqtt, const TelemetrySnapshot &sample,
-                      const char *clientId) {
-  char temperature[48], humidity[48], pressure[48];
-  jsonNumber((sample.bmpOk || sample.dhtOk) ? sample.temperature : NAN, temperature, sizeof(temperature));
-  jsonNumber(sample.dhtOk ? sample.humidity : NAN, humidity, sizeof(humidity));
-  jsonNumber(sample.bmpOk ? sample.pressure : NAN, pressure, sizeof(pressure));
-  char payload[640];
+  if (sample.bmpOk || sample.dhtOk) snprintf(tempStr, sizeof(tempStr), "%.2f", sample.temperature);
+  else snprintf(tempStr, sizeof(tempStr), "null");
+
+  if (sample.dhtOk) snprintf(humStr, sizeof(humStr), "%.2f", sample.humidity);
+  else snprintf(humStr, sizeof(humStr), "null");
+
+  if (sample.bmpOk) snprintf(pressStr, sizeof(pressStr), "%.2f", sample.pressure);
+  else snprintf(pressStr, sizeof(pressStr), "null");
+
+  char payload[512];
   const int length = snprintf(
       payload, sizeof(payload),
       "{\"device_id\":\"%s\",\"temperature_c\":%s,\"humidity_pct\":%s,"
       "\"pressure_hpa\":%s,\"rain_mm\":%.2f,\"tip_count\":%d,"
       "\"bme280_found\":%s,\"rain_reset_sequence\":%lu,"
       "\"uptime_ms\":%lu,\"published_at_unix\":%llu,\"wifi_rssi_dbm\":%d}",
-      clientId, temperature, humidity, pressure,
+      clientId, tempStr, humStr, pressStr,
       static_cast<double>(sample.tips * RAINFALL_PER_TIP), sample.tips,
       (sample.bmpOk || sample.dhtOk) ? "true" : "false",
       static_cast<unsigned long>(sample.resetSequence),
       static_cast<unsigned long>(sample.uptimeMs),
       static_cast<unsigned long long>(time(nullptr)), WiFi.RSSI());
-  if (length < 0 || static_cast<size_t>(length) >= sizeof(payload)) {
-    return false;
-  }
+
+  if (length < 0 || static_cast<size_t>(length) >= sizeof(payload)) return false;
+
   const bool sent = mqtt.publish(MQTT_DATA_TOPIC, payload, true);
   if (sent) Serial.printf("[MQTT] Da gui: %s\n", payload);
+  else Serial.println("[MQTT] Gui that bai, se thu lai.");
   return sent;
 }
 
@@ -450,7 +456,7 @@ void networkTask(void *parameter) {
     return;
   }
 
-  // Khởi tạo WiFiMulti
+  // Cấu hình Wi-Fi Multi tự động chuyển sang mạng có sóng tốt nhất
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
@@ -463,7 +469,7 @@ void networkTask(void *parameter) {
     }
   }
 
-  Serial.println("[WiFi] Dang quet va ket noi...");
+  Serial.println("[WiFi] Dang quet va ket noi vao mang WiFi manh nhat...");
   wifiMulti.run();
 
   const uint64_t chipId = ESP.getEfuseMac();
@@ -488,10 +494,10 @@ void networkTask(void *parameter) {
   for (;;) {
     uint32_t now = millis();
 
-    // Kiểm tra kết nối WiFi bằng WiFiMulti
+    // 1. Kiểm tra kết nối WiFi
     if (WiFi.status() != WL_CONNECTED) {
       if (wifiWasConnected) {
-        Serial.println("[WiFi] Mat ket noi, dang quet lai...");
+        Serial.println("[WiFi] Mat ket noi, dang quet mang du phong khac...");
         tlsClient.stop();
         wifiWasConnected = false;
         forcePublish = true;
@@ -506,7 +512,7 @@ void networkTask(void *parameter) {
 
     if (!wifiWasConnected) {
       wifiWasConnected = true;
-      Serial.printf("[WiFi] Da ket noi: %s | IP: %s\n",
+      Serial.printf("[WiFi] Da ket noi! SSID: %s | IP: %s\n",
                     WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
       mqttRetryMs = MQTT_RETRY_MIN_MS;
       lastMqttAttempt = now - mqttRetryMs;
@@ -516,13 +522,13 @@ void networkTask(void *parameter) {
       }
     }
 
-    // Chờ NTP sync giờ
+    // 2. Chờ đồng bộ thời gian NTP (cần cho chứng thực TLS)
     if (time(nullptr) < 1704067200LL) {
       vTaskDelay(pdMS_TO_TICKS(100));
       continue;
     }
 
-    // Kết nối MQTT Broker
+    // 3. Kết nối và duy trì MQTT Broker
     if (!mqtt.connected()) {
       if (uint32_t(now - lastMqttAttempt) >= mqttRetryMs) {
         tlsClient.stop();
@@ -535,27 +541,19 @@ void networkTask(void *parameter) {
           forcePublish = true;
           lastPublishAttempt = millis() - MQTT_EVENT_MIN_INTERVAL_MS;
           mqtt.publish(MQTT_STATUS_TOPIC, "online", true);
-          Serial.println("[MQTT] Da ket noi thanh cong!");
+          Serial.println("[MQTT] Da ket noi TLS thanh cong!");
         } else {
-          Serial.printf("[MQTT] Loi ket noi (state=%d)\n", mqtt.state());
           tlsClient.stop();
-          mqttRetryMs = mqttRetryMs < MQTT_RETRY_MAX_MS / 2
-                            ? mqttRetryMs * 2 : MQTT_RETRY_MAX_MS;
+          mqttRetryMs = mqttRetryMs < MQTT_RETRY_MAX_MS / 2 ? mqttRetryMs * 2 : MQTT_RETRY_MAX_MS;
         }
       }
       vTaskDelay(pdMS_TO_TICKS(50));
       continue;
     }
 
-    if (!mqtt.loop()) {
-      tlsClient.stop();
-      lastMqttAttempt = millis();
-      forcePublish = true;
-      vTaskDelay(pdMS_TO_TICKS(50));
-      continue;
-    }
+    mqtt.loop();
 
-    // Đọc telemetry từ queue và publish lên MQTT
+    // 4. Lấy dữ liệu mới nhất từ Queue và gửi lên MQTT
     if (xQueuePeek(telemetryQueue, &sample, 0) == pdTRUE) {
       now = millis();
       const bool rainChanged = !havePublished || sample.tips != lastSentTips ||

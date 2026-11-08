@@ -71,6 +71,8 @@ export const api = {
   getCommands: (id: string) => request<any[]>(`/api/devices/${id}/commands`),
   resetDeviceData: (id: string) =>
     request<any>(`/api/devices/${id}/reset-data`, { method: 'POST' }),
+  resetRainOnly: (id?: string) =>
+    request<any>(id ? `/api/devices/${id}/reset-rain` : '/api/devices/reset-rain', { method: 'POST' }),
 
   getLatest: (id: string) => request<any>(`/api/devices/${id}/latest`),
   getMeasurements: (id: string, range: string = '24h', from?: string, to?: string) => {

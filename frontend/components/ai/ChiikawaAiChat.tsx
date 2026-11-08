@@ -16,7 +16,7 @@ import {
 import { RainSenseIcon } from './RainSenseIcon';
 import { api } from '@/lib/api';
 import { generateRainSenseReply, normalizeStationContext } from '@/lib/rainsense-ai';
-import type { ChatMetadata } from '@/shared/ai-types';
+import type { ChatMetadata } from '../../../backend/src/shared/ai-types';
 
 interface Message {
   id: string;
