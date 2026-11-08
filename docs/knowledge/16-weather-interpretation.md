@@ -1,0 +1,10 @@
+<!-- {"documentId":"weather-interpretation","title":"Diễn giải riêng từng chỉ số thời tiết","version":"1.0","hardwareVariant":"all","firmwareVersion":"any","verifiedAt":"2026-11-09","status":"verified","source":"https://www.weather.gov/arx/why_dewpoint_vs_humidity","sectionSources":{"Khí áp bao nhiêu là cao hoặc thấp":"https://www.noaa.gov/jetstream/atmosphere/air-pressure"},"keywords":["mát mẻ","dễ chịu","nóng","lạnh","nhiệt độ","độ ẩm","áp suất","khí áp","cao","thấp","ý nghĩa"]} -->
+
+## Nhiệt độ bao nhiêu thì mát hay nóng
+Nhiệt độ không khí mô tả mức nóng/lạnh của không khí tại thời điểm đo. Để mô tả sơ bộ trong RainSense có thể dùng mốc gần đúng: dưới 18 °C khá mát/có thể thấy lạnh; 18–24 °C thường mát; 24–30 °C ấm và có thể dễ chịu; 30–32 °C ấm đến khá nóng; từ 32 °C khá nóng. Đây là quy ước diễn giải của dự án, không phải ngưỡng tiện nghi hay sức khỏe áp dụng cho mọi người. Cảm giác còn phụ thuộc RH, điểm sương, gió, nắng và khả năng thích nghi; không suy cả ngày đẹp trời chỉ từ nhiệt độ. Với số đo cụ thể, đọc thêm độ ẩm hiện có để nhận xét oi ẩm hoặc dễ chịu.
+
+## Độ ẩm bao nhiêu là cao hoặc thấp
+RH là độ ẩm tương đối so với bão hòa ở cùng nhiệt độ, không phải lượng mưa hay độ ẩm đất. RainSense dùng các mốc mô tả gần đúng: dưới 35% khá khô, 35–70% mức vừa, 70–85% khá ẩm, từ 85% độ ẩm tương đối cao. Các mốc này là cách diễn đạt của ứng dụng, không phải mức tối ưu chung. Nhiệt độ và điểm sương giúp đánh giá cảm giác ẩm; RH cao ở nhiệt độ thấp không đồng nghĩa oi bức như khi trời nóng. Một giá trị RH cao không xác định giờ mưa.
+
+## Khí áp bao nhiêu là cao hoặc thấp
+Khí áp là áp suất do không khí tác dụng lên bề mặt, thường hiển thị hPa; 1 hPa = 100 Pa. 1013,25 hPa là áp suất chuẩn mực biển, không phải ranh giới chắc chắn trời đẹp hay mưa. Cần phân biệt khí áp tại trạm với khí áp quy về biển, xét độ cao và so cùng loại số đo theo thời gian. Khi có mốc so sánh, có thể nói đang tăng/giảm giữa các mốc đã ghi; một lần đọc không xác nhận ổn định, sắp mưa hay có bão. Thiếu chuỗi vẫn báo và giải thích được giá trị hiện có.

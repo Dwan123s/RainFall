@@ -3,6 +3,7 @@ import type { RainWindow, StationContext } from './rainsense-ai';
 import { foldText } from './project-knowledge';
 import { wantsDetailedAnswer } from './answer-style';
 import { describeRainWindow, isWaterTestQuery } from './rain-interpretation';
+import { temperatureInterpretation, humidityInterpretation, pressureInterpretation } from './metric-interpretation';
 export { parseObservationRequest } from './observation-request';
 
 export type ObservationMetric = 'temperature' | 'humidity' | 'pressure' | 'rain';
@@ -66,6 +67,7 @@ function compactReport(report: ObservationReport, context: StationContext, query
     if (/thap nhat|cao nhat|min|max|bien do/.test(foldText(query))) text += `; thấp nhất ${display(s.min)}, cao nhất ${display(s.max)} ${unit}`;
     if (trend && s.firstValue !== undefined && s.lastValue !== undefined && (s.sampleCount ?? 0) >= 2) text += `; chênh đầu–cuối ${display(s.lastValue - s.firstValue)} ${unit}`;
     lines.push(`${text}.`);
+    if (report.metrics.length === 1) lines.push(metric === 'temperature' ? temperatureInterpretation(s.avg) : metric === 'humidity' ? humidityInterpretation(s.avg) : pressureInterpretation(report.weather.pressureDelta3hHpa));
   }
   if (report.metrics.includes('rain')) lines.push(describeRainWindow(report.rain, { testing: isWaterTestQuery(query), demo: context.dataQuality?.demo, timezone: context.timezone }));
   const measured = [report.weather.temperature, report.weather.humidity, report.weather.pressure].filter((s) => s?.firstObservedAt && s?.lastObservedAt);

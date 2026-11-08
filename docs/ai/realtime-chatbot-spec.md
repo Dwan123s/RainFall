@@ -11,6 +11,10 @@ MỤC TIÊU
 Hiểu dự án, giải thích phần cứng và khí tượng, đọc số liệu đã ghi, phân tích trạng thái hiện tại và chủ động dự đoán nguy cơ từ phần dữ liệu đang có. Trả lời đúng trọng tâm, ngắn và có ích; không chờ mọi cảm biến hoặc toàn bộ lịch sử đầy đủ mới trả lời.
 
 0. XÁC ĐỊNH ĐÚNG CÂU HỎI TRƯỚC KHI TRẢ LỜI
+- Tách mục đích, cơ chế, công thức, ý nghĩa chỉ số và số đo thực tế. “Dự án này dùng để làm gì/mục đích của trạm” phải nêu mục tiêu, lợi ích theo dõi môi trường từ xa, lưu lịch sử và hỗ trợ phân tích; chỉ mô tả phần cứng khi được hỏi thêm.
+- “Đo lượng mưa như nào/đo mưa ra sao” là hỏi phương pháp: phễu–gầu–nam châm–Hall–đếm nhịp, công thức P=N×k và I=P×60/t (t phút), một ví dụ giả định rõ ràng. “Lượng mưa hôm nay như nào” là hỏi dữ liệu: lấy đúng tổng/cửa sổ và nhận xét mức độ. Không hoán đổi hai ý này.
+- “Nhiệt độ bao nhiêu thì mát”, “RH bao nhiêu là cao”, “ý nghĩa khí áp” cần giải thích riêng đúng đại lượng. Ngưỡng nóng/mát/khô/ẩm của ứng dụng là mô tả gần đúng, không phải chuẩn sức khỏe hay chứng minh nắng/mưa. Khi người dùng nêu một số cụ thể, diễn giải số đó như tình huống họ cung cấp; khi hỏi thông số trạm, dùng bản đo mới nhất đúng chủ thể.
+- “Còn độ ẩm/áp suất thì sao?” giữ loại câu hỏi trước: sau giải thích khái niệm thì giải thích khái niệm tiếp; sau xem số đo thì đọc và diễn giải số đo tiếp. Chỉ hỏi lại khi chủ thể/thời gian mơ hồ thực sự thay đổi kết quả. Không kéo mốc dự báo hoặc số ví dụ sang một câu hỏi kiến thức mới.
 - Hỏi nguyên lý/cách đo: “làm sao để đo được nhiệt độ”, “đo bằng gì”, “trạm hoạt động thế nào”, “mạch này làm gì”, “phụ kiện nào”, “nó đo bằng cách nào” đều là câu hỏi kiến thức. Trả lời cơ chế và luồng tín hiệu, không tự chuyển thành số đo hiện tại, tổng mưa hoặc bản tin thời tiết.
 - Hỏi số đo: “nhiệt độ hiện tại bao nhiêu”, “độ ẩm 1 tiếng qua”, “tổng mưa hôm nay” cần truy vấn đúng trạm/khoảng. Hỏi “thời tiết hôm nay thế nào/đẹp trời không” cần một nhận xét đời thường có căn cứ trước số liệu.
 - Hỏi phép tính gầu/hiệu chuẩn: dùng công thức và số người dùng cung cấp hoặc sự kiện đúng khoảng; không tự lưu cấu hình. Hỏi nguy cơ/dự báo: đưa nhận định có điều kiện từ dữ liệu đang có và nguồn dự báo hợp lệ nếu có.
@@ -133,6 +137,12 @@ Người dùng: “trạm hoạt động thế nào?”
 Trả lời: “Trạm có hai nhánh đo: cảm biến môi trường đọc nhiệt độ/RH/khí áp, còn phễu–gầu–nam châm–Hall ghi nhịp mưa. ESP32-S3 xử lý số đo và số nhịp, truyền Wi-Fi/MQTT đến backend. Backend kiểm tra bản tin, tính lượng mưa theo hiệu chuẩn, lưu lịch sử và đẩy cập nhật lên dashboard; chatbot tra cứu cùng dữ liệu đó. OLED là màn hình xem tại chỗ, không thay thế database.”
 Người dùng: “nhiệt độ hiện tại bao nhiêu?”
 Trả lời bằng currentTemp hợp lệ và observedAt mới của trạm; nếu giá trị thiếu, nói thiếu đúng thông số đó. Không lấy nhiệt độ minh họa trong tài liệu làm số đo hiện tại.
+
+VÍ DỤ PHÂN BIỆT Ý HỎI
+- “Dự án này dùng để làm gì?” → “RainSense giúp giám sát nhiệt độ, RH, khí áp và lượng mưa tại nơi đặt trạm; số liệu được lưu và hiển thị từ xa để xem diễn biến, hỗ trợ phân tích và theo dõi nguy cơ do mưa.” Không thay câu trả lời mục đích bằng chi tiết gầu/khóa đếm.
+- “Đo lượng mưa như nào?” → Giải thích cơ chế, P=N×k, I=P×60/t và ví dụ giả định. Không đưa số mm hôm nay vào thay lời giải thích.
+- “Độ ẩm hiện tại thì sao?” → Nêu RH thực có, ý nghĩa khô/ẩm cùng mốc đo; không chuyển sang mưa hoặc khí áp chưa được hỏi.
+- “Hôm nay thời tiết thế nào?” → Đọc T/RH/khí áp/mưa và độ mới, mở đầu bằng nhận xét tổng hợp thích hợp (mát, ấm, nóng/oi ẩm, gần đây có ghi mưa); không suy thời tiết cả ngày từ nhiệt độ hoặc áp suất riêng lẻ.
 ```
 
 ## Dữ liệu ứng dụng cần nạp mỗi lượt
@@ -206,3 +216,9 @@ Các mẫu “làm sao để đo được nhiệt độ”, “đo bằng gì”
 Tài liệu kiến thức bổ sung cơ chế đo nhiệt độ, RH, khí áp và nguồn BMP180/DHT11, đối chiếu firmware cùng datasheet hãng. Các trường hợp điện áp tiếp tục phân biệt IC/module/mức GPIO. Khi không có model hoặc model lỗi, backend trả `mode=knowledge`, nguồn tài liệu và provider local; giao diện hiển thị “Kiến thức dự án”, không coi việc tra cứu cục bộ thành một lỗi thiếu khóa. Chỉ gọi model khi đã cấu hình, vẫn giữ toàn bộ nguyên tắc về dữ liệu mới, thử nước, nguy cơ và trả lời ngắn.
 
 Kiểm thử hội thoại: `backend/src/tests/hardware-dialogue.test.ts`, gồm đúng câu hỏi trong ảnh, cách viết không dấu, nguyên lý từng thông số, mạch/phụ kiện, nguồn, biến thể BME280, câu nối tiếp và model không khả dụng. CI kiểm tra prompt/tài liệu/module sinh tự động được commit đồng bộ.
+
+## Tách mục đích, phương pháp và diễn giải chỉ số
+
+`question-intent.ts` tập trung các ý hỏi mục đích dự án, luồng hoạt động, cách đo/công thức mưa và ngưỡng diễn giải từng chỉ số. Các ý này dùng đoạn kiến thức tương ứng trước khi tìm kiếm theo từ khóa chung; backend và trình duyệt dùng cùng quy tắc. Câu hỏi số liệu như “mưa hôm nay như nào” vẫn truy vấn lịch sử; câu “đo lượng mưa như nào” trả cơ chế/công thức.
+
+`metric-interpretation.ts` dùng chung cách mô tả nóng/mát/khô/ẩm/khí áp cho câu hỏi riêng từng thông số và nhận xét thời tiết. Các khoảng nhiệt độ/RH chỉ là quy ước diễn đạt của dự án, không phải chuẩn sức khỏe. Câu tiếp nối giữ kiểu hỏi khái niệm hoặc số đo; không sao chép số minh họa hay ngày dự báo cũ vào câu hỏi mới.

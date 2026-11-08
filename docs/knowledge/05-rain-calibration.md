@@ -1,4 +1,4 @@
-<!-- {"documentId":"rain-calibration","title":"Hiệu chuẩn và tính gầu lật","version":"1.1","hardwareVariant":"all","firmwareVersion":"any","verifiedAt":"2026-11-03","status":"verified","source":"https://github.com/Dwan123s/RainFall","keywords":["hiệu chuẩn","gầu","gàu","lật","mm","mm/h","công thức","hệ số","diện tích","thể tích","độ phân giải","thử nước","xả nước","đối chiếu"]} -->
+<!-- {"documentId":"rain-calibration","title":"Hiệu chuẩn và tính gầu lật","version":"1.2","hardwareVariant":"all","firmwareVersion":"any","verifiedAt":"2026-11-09","status":"verified","source":"https://github.com/Dwan123s/RainFall","keywords":["hiệu chuẩn","gầu","gàu","lật","mm","mm/h","công thức","hệ số","diện tích","thể tích","độ phân giải","thử nước","xả nước","đối chiếu"]} -->
 
 ## Lượng mưa và số lần lật
 Mỗi sự kiện có số nhịp và hệ số tại thời điểm đo: lượng mưa mm = tổng(tipCount × calibrationFactor). Nếu hệ số k không đổi, số lần tương đương N = P/k. 12,8 mm với k=0,64 mm/lần tương đương 20 lần. 10/0,64=15,625 lần tương đương; số nhịp thực phải là số nguyên và phụ thuộc nước có sẵn trong gầu, hiệu chuẩn và điều kiện đo. Khi hệ số đổi, phải đếm sự kiện hoặc tính riêng từng đoạn, không dùng hệ số hiện tại chia tổng lịch sử.
@@ -14,3 +14,6 @@ Bản tin bộ đếm chỉ cho biết số nhịp tăng giữa hai lần gửi,
 
 ## Hiệu chuẩn bằng thể tích
 Đo diện tích miệng phễu A (cm²), cho thể tích nước V (mL) đã đo qua phễu và đếm N lần lật: k=10×V/(A×N), đơn vị mm/lần. A và N phải lớn hơn 0. Lặp lại ở các lưu lượng phù hợp để xem sai số, kiểm tra phễu sạch, gầu cân và không rò nước. Không sao chép hệ số 0,64 hoặc 0,25 khi chưa hiệu chuẩn đúng cơ cấu.
+
+## Cách đo lượng mưa bằng gầu lật
+Phễu thu nước vào gầu; khi đủ thể tích, gầu lật làm nam châm đi qua Hall A3144 và ESP32-S3 đếm nhịp hợp lệ. Với hệ số k không đổi, lượng mưa P = N × k, trong đó N là số nhịp và k có đơn vị mm/nhịp; nếu hiệu chuẩn thay đổi thì cộng lượng từng sự kiện theo hệ số lúc đo. Ví dụ giả định k = 0,64 mm/nhịp và N = 10 thì P = 6,4 mm. Cường độ trung bình I = P × 60 / t với t tính bằng phút; 6,4 mm trong 20 phút tương đương 19,2 mm/h cho đoạn đó. Hệ số của cơ cấu thực phải được hiệu chuẩn; Hall phát hiện nhịp, không tự đo mm.

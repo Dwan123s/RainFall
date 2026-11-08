@@ -3,7 +3,7 @@ export const KNOWLEDGE_CHUNKS = [
   {
     "documentId": "project-overview",
     "title": "Luồng hoạt động RainSense — Luồng từ nước mưa đến website",
-    "version": "1.1",
+    "version": "1.2",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
     "verifiedAt": "2026-11-09",
@@ -25,7 +25,7 @@ export const KNOWLEDGE_CHUNKS = [
   {
     "documentId": "project-overview",
     "title": "Luồng hoạt động RainSense — Chức năng website và chatbot",
-    "version": "1.1",
+    "version": "1.2",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
     "verifiedAt": "2026-11-09",
@@ -43,6 +43,28 @@ export const KNOWLEDGE_CHUNKS = [
     "id": "project-overview-1",
     "path": "docs/knowledge/01-project-overview.md",
     "text": "Tổng quan hiển thị số đo mới nhất và trạng thái trạm. Phân tích lượng mưa xem tổng, cường độ và diễn biến; phân tích môi trường xem nhiệt độ, độ ẩm, khí áp. Quản lý thiết bị, cảnh báo và lịch sử phục vụ vận hành. Chatbot đọc context từ backend và tra cứu tài liệu đã duyệt; số liệu trong hội thoại cũ không thay thế bản đo mới."
+  },
+  {
+    "documentId": "project-overview",
+    "title": "Luồng hoạt động RainSense — Mục đích và lợi ích của dự án",
+    "version": "1.2",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall",
+    "keywords": [
+      "nguyên lý",
+      "hoạt động",
+      "luồng",
+      "dự án",
+      "kiến trúc",
+      "website",
+      "biểu đồ"
+    ],
+    "id": "project-overview-2",
+    "path": "docs/knowledge/01-project-overview.md",
+    "text": "RainSense là trạm khí tượng IoT giúp theo dõi nhiệt độ không khí, độ ẩm, khí áp và lượng mưa tại nơi đặt trạm. Dự án tự động thu thập, lưu lịch sử và hiển thị số liệu trên website để người dùng quan sát diễn biến môi trường từ xa. Các phần tổng hợp, phân tích và cảnh báo hỗ trợ nhận biết thay đổi, đánh giá sơ bộ nguy cơ do mưa và chủ động theo dõi điều kiện tại chỗ. Đây cũng là mô hình học tập/thử nghiệm tích hợp cảm biến, vi điều khiển, truyền dữ liệu và ứng dụng web."
   },
   {
     "documentId": "hardware-bom",
@@ -205,10 +227,10 @@ export const KNOWLEDGE_CHUNKS = [
   {
     "documentId": "rain-calibration",
     "title": "Hiệu chuẩn và tính gầu lật — Lượng mưa và số lần lật",
-    "version": "1.1",
+    "version": "1.2",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-03",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://github.com/Dwan123s/RainFall",
     "keywords": [
@@ -234,10 +256,10 @@ export const KNOWLEDGE_CHUNKS = [
   {
     "documentId": "rain-calibration",
     "title": "Hiệu chuẩn và tính gầu lật — Cường độ và độ phân giải",
-    "version": "1.1",
+    "version": "1.2",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-03",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://github.com/Dwan123s/RainFall",
     "keywords": [
@@ -263,10 +285,10 @@ export const KNOWLEDGE_CHUNKS = [
   {
     "documentId": "rain-calibration",
     "title": "Hiệu chuẩn và tính gầu lật — Hiệu chuẩn bằng thể tích",
-    "version": "1.1",
+    "version": "1.2",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-03",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://github.com/Dwan123s/RainFall",
     "keywords": [
@@ -288,6 +310,35 @@ export const KNOWLEDGE_CHUNKS = [
     "id": "rain-calibration-2",
     "path": "docs/knowledge/05-rain-calibration.md",
     "text": "Đo diện tích miệng phễu A (cm²), cho thể tích nước V (mL) đã đo qua phễu và đếm N lần lật: k=10×V/(A×N), đơn vị mm/lần. A và N phải lớn hơn 0. Lặp lại ở các lưu lượng phù hợp để xem sai số, kiểm tra phễu sạch, gầu cân và không rò nước. Không sao chép hệ số 0,64 hoặc 0,25 khi chưa hiệu chuẩn đúng cơ cấu."
+  },
+  {
+    "documentId": "rain-calibration",
+    "title": "Hiệu chuẩn và tính gầu lật — Cách đo lượng mưa bằng gầu lật",
+    "version": "1.2",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall",
+    "keywords": [
+      "hiệu chuẩn",
+      "gầu",
+      "gàu",
+      "lật",
+      "mm",
+      "mm/h",
+      "công thức",
+      "hệ số",
+      "diện tích",
+      "thể tích",
+      "độ phân giải",
+      "thử nước",
+      "xả nước",
+      "đối chiếu"
+    ],
+    "id": "rain-calibration-3",
+    "path": "docs/knowledge/05-rain-calibration.md",
+    "text": "Phễu thu nước vào gầu; khi đủ thể tích, gầu lật làm nam châm đi qua Hall A3144 và ESP32-S3 đếm nhịp hợp lệ. Với hệ số k không đổi, lượng mưa P = N × k, trong đó N là số nhịp và k có đơn vị mm/nhịp; nếu hiệu chuẩn thay đổi thì cộng lượng từng sự kiện theo hệ số lúc đo. Ví dụ giả định k = 0,64 mm/nhịp và N = 10 thì P = 6,4 mm. Cường độ trung bình I = P × 60 / t với t tính bằng phút; 6,4 mm trong 20 phút tương đương 19,2 mm/h cho đoạn đó. Hệ số của cơ cấu thực phải được hiệu chuẩn; Hall phát hiện nhịp, không tự đo mm."
   },
   {
     "documentId": "meteorology",
@@ -1179,5 +1230,92 @@ export const KNOWLEDGE_CHUNKS = [
     "id": "measurement-principles-4",
     "path": "docs/knowledge/15-measurement-principles.md",
     "text": "Tài liệu Aosong được đối chiếu ghi nguồn DHT11 3,3–5,5 V; cần kiểm tra đúng phiên bản/module. Khi ghép ESP32-S3, DATA phải có mức logic phù hợp GPIO 3,3 V; không mặc định module cấp 5 V có OUT an toàn. Module có thể tích hợp trở kéo lên DATA. Bus DHT11 khác bus Dallas/Maxim OneWire, cần dùng thư viện đúng loại. Chân DATA phải theo firmware đang nạp, không sao chép sơ đồ từ board khác."
+  },
+  {
+    "documentId": "weather-interpretation",
+    "title": "Diễn giải riêng từng chỉ số thời tiết — Nhiệt độ bao nhiêu thì mát hay nóng",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://www.weather.gov/arx/why_dewpoint_vs_humidity",
+    "sectionSources": {
+      "Khí áp bao nhiêu là cao hoặc thấp": "https://www.noaa.gov/jetstream/atmosphere/air-pressure"
+    },
+    "keywords": [
+      "mát mẻ",
+      "dễ chịu",
+      "nóng",
+      "lạnh",
+      "nhiệt độ",
+      "độ ẩm",
+      "áp suất",
+      "khí áp",
+      "cao",
+      "thấp",
+      "ý nghĩa"
+    ],
+    "id": "weather-interpretation-0",
+    "path": "docs/knowledge/16-weather-interpretation.md",
+    "text": "Nhiệt độ không khí mô tả mức nóng/lạnh của không khí tại thời điểm đo. Để mô tả sơ bộ trong RainSense có thể dùng mốc gần đúng: dưới 18 °C khá mát/có thể thấy lạnh; 18–24 °C thường mát; 24–30 °C ấm và có thể dễ chịu; 30–32 °C ấm đến khá nóng; từ 32 °C khá nóng. Đây là quy ước diễn giải của dự án, không phải ngưỡng tiện nghi hay sức khỏe áp dụng cho mọi người. Cảm giác còn phụ thuộc RH, điểm sương, gió, nắng và khả năng thích nghi; không suy cả ngày đẹp trời chỉ từ nhiệt độ. Với số đo cụ thể, đọc thêm độ ẩm hiện có để nhận xét oi ẩm hoặc dễ chịu."
+  },
+  {
+    "documentId": "weather-interpretation",
+    "title": "Diễn giải riêng từng chỉ số thời tiết — Độ ẩm bao nhiêu là cao hoặc thấp",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://www.weather.gov/arx/why_dewpoint_vs_humidity",
+    "sectionSources": {
+      "Khí áp bao nhiêu là cao hoặc thấp": "https://www.noaa.gov/jetstream/atmosphere/air-pressure"
+    },
+    "keywords": [
+      "mát mẻ",
+      "dễ chịu",
+      "nóng",
+      "lạnh",
+      "nhiệt độ",
+      "độ ẩm",
+      "áp suất",
+      "khí áp",
+      "cao",
+      "thấp",
+      "ý nghĩa"
+    ],
+    "id": "weather-interpretation-1",
+    "path": "docs/knowledge/16-weather-interpretation.md",
+    "text": "RH là độ ẩm tương đối so với bão hòa ở cùng nhiệt độ, không phải lượng mưa hay độ ẩm đất. RainSense dùng các mốc mô tả gần đúng: dưới 35% khá khô, 35–70% mức vừa, 70–85% khá ẩm, từ 85% độ ẩm tương đối cao. Các mốc này là cách diễn đạt của ứng dụng, không phải mức tối ưu chung. Nhiệt độ và điểm sương giúp đánh giá cảm giác ẩm; RH cao ở nhiệt độ thấp không đồng nghĩa oi bức như khi trời nóng. Một giá trị RH cao không xác định giờ mưa."
+  },
+  {
+    "documentId": "weather-interpretation",
+    "title": "Diễn giải riêng từng chỉ số thời tiết — Khí áp bao nhiêu là cao hoặc thấp",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://www.noaa.gov/jetstream/atmosphere/air-pressure",
+    "sectionSources": {
+      "Khí áp bao nhiêu là cao hoặc thấp": "https://www.noaa.gov/jetstream/atmosphere/air-pressure"
+    },
+    "keywords": [
+      "mát mẻ",
+      "dễ chịu",
+      "nóng",
+      "lạnh",
+      "nhiệt độ",
+      "độ ẩm",
+      "áp suất",
+      "khí áp",
+      "cao",
+      "thấp",
+      "ý nghĩa"
+    ],
+    "id": "weather-interpretation-2",
+    "path": "docs/knowledge/16-weather-interpretation.md",
+    "text": "Khí áp là áp suất do không khí tác dụng lên bề mặt, thường hiển thị hPa; 1 hPa = 100 Pa. 1013,25 hPa là áp suất chuẩn mực biển, không phải ranh giới chắc chắn trời đẹp hay mưa. Cần phân biệt khí áp tại trạm với khí áp quy về biển, xét độ cao và so cùng loại số đo theo thời gian. Khi có mốc so sánh, có thể nói đang tăng/giảm giữa các mốc đã ghi; một lần đọc không xác nhận ổn định, sắp mưa hay có bão. Thiếu chuỗi vẫn báo và giải thích được giá trị hiện có."
   }
 ] as const;

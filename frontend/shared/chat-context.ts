@@ -1,6 +1,7 @@
 import type { ChatTurn } from './rainsense-ai';
 import { foldText, isProjectExplanationQuery } from './project-knowledge';
 import { hasFutureTime } from './time-request';
+import { isMeasurementMethodQuestion, knowledgeQuestionTopics, isMetricEvaluationQuestion } from './question-intent';
 
 const followUp = /^(?:vay|the|con|neu vay|thi|no|cai nay|bo phan nay|linh kien nay)\b/;
 const hasDay = /hom nay|hom qua|(?:sang|chieu|toi|dem) nay|hien tai|luc nay|ngay mai|chieu mai|toi mai|sang mai|ngay kia|\bmai\b|ngay\s*\d|\d{1,2}[/-]\d{1,2}/;
@@ -10,7 +11,8 @@ function resolveAgainst(message: string, previous: string): string {
   const q = foldText(message.trim());
   if (!previous || !followUp.test(q) || q.length > 180) return message;
   const p = foldText(previous);
-  const methodFollowup = /lam sao|lam the nao|bang gi|nguyen ly|hoat dong|cach do|do.*bang/.test(q);
+  const methodFollowup = isMeasurementMethodQuestion(message) || /lam sao|lam the nao|bang gi|nguyen ly|hoat dong|cach do|do.*bang/.test(q);
+  if (knowledgeQuestionTopics(message).length) return message;
   const hardware = q.match(/bmp180|bmp280|dht11|bme280|a3144|hall|oled|esp32(?:-s3)?|mqtt/g);
   // An explicit new hardware topic must not inherit an earlier weather forecast.
   if (hardware?.length) return message;
@@ -32,6 +34,7 @@ function resolveAgainst(message: string, previous: string): string {
   ];
   const explicitTopic = topics.some((topic) => topic.pattern.test(q));
   const previousTopics = topics.filter((topic) => topic.pattern.test(p));
+  if (explicitTopic && !hasDay.test(q) && isMetricEvaluationQuestion(message) && knowledgeQuestionTopics(previous).some((topic) => topic.endsWith('-guide'))) return `${message}, giải thích ý nghĩa`;
   if (methodFollowup && !explicitTopic && previousTopics.length) return `${message} (${previousTopics.map((t) => t.label).join(', ')})`;
   if (explicitTopic || previousTopics.length && /gio|tieng|phut|ngay|hom|hien tai|luc nay|trung binh|cao nhat|thap nhat|xu huong|sang|chieu|toi|dem/.test(q)) {
     const explicitTime = /(?:\d+|mot|hai|ba|bon|nam|sau|bay|nua)\s*(?:gio|tieng|phut|h\b)|hom qua|hom nay|hien tai|luc nay|bay gio|\btu\s*\d|tuan|thang|(?:sang|chieu|toi|dem) nay/.test(q);

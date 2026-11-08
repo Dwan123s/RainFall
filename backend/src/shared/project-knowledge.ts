@@ -2,8 +2,9 @@ import { KNOWLEDGE_CHUNKS } from './knowledge.generated';
 import type { HardwareVariant, KnowledgeSource } from './ai-types';
 import type { StationContext } from './rainsense-ai';
 import { wantsDetailedAnswer } from './answer-style';
+import { normalizeQuestionText, knowledgeQuestionTopics, KNOWLEDGE_TOPIC_SECTIONS, isMeasurementMethodQuestion, isMetricEvaluationQuestion, hasSuppliedSensorValue } from './question-intent';
 
-export const foldText = (text: string) => text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+export const foldText = normalizeQuestionText;
 const stop = new Set('la gi cua va cho thi co khong duoc nhu nao mot nhung cac voi trong toi ban hay the ve nay tai sao bao nhieu'.split(' '));
 export type KnowledgeChunk = (typeof KNOWLEDGE_CHUNKS)[number];
 const focusedTopics = [
@@ -46,6 +47,7 @@ export function knowledgeSource(chunk: KnowledgeChunk): KnowledgeSource {
 
 export function isProjectExplanationQuery(query: string): boolean {
   const q = foldText(query);
+  if (knowledgeQuestionTopics(query).length || isMeasurementMethodQuestion(query)) return true;
   return /la gi|tai sao|vi sao|giai thich|y nghia|khac nhau|co chac|co phai|nguyen ly|hoat dong|vai tro|anh huong|cach|lam sao|lam the nao|bang gi|de lam gi|dung de|tac dung|chuc nang|hieu chuan|dau noi|noi chan|so do|dien ap|nguon|dien tro|mass|gnd|chu ky|lich doc|doc.*bao lau/.test(q)
     || /bme280|bmp180|bmp280|dht11|hall|a3144|oled|mach|phu kien|linh kien/.test(q) && /co do|do duoc|lam gi|dung.*gi|gom|nhung|can gi/.test(q);
 }
@@ -88,6 +90,7 @@ export function searchProjectDocs(query: string, variant: HardwareVariant = 'unk
     if (electrical === 'bmp-power' && d.id === 'measurement-principles-3') score += 80;
     if (electrical === 'dht-power' && d.id === 'measurement-principles-4') score += 80;
     if (measurementTopic(q) === d.id) score += 80;
+    if (knowledgeQuestionTopics(q).some((topic) => KNOWLEDGE_TOPIC_SECTIONS[topic] === d.id)) score += 120;
     for (const topic of focusedTopics) if (topic.pattern.test(q) && topic.id === d.id) score += 45;
     return { d, score };
   }).filter((p) => p.score > 0).sort((a, b) => b.score - a.score || a.d.id.localeCompare(b.d.id))
@@ -96,6 +99,9 @@ export function searchProjectDocs(query: string, variant: HardwareVariant = 'unk
 
 export function getProjectKnowledgeReply(query: string, context: StationContext): string | null {
   const q = foldText(query);
+  const topics = knowledgeQuestionTopics(query);
+  if (topics.length) return topics.map((topic) => KNOWLEDGE_CHUNKS.find((d) => d.id === KNOWLEDGE_TOPIC_SECTIONS[topic])?.text).filter(Boolean).join('\n\n') || null;
+  if (hasSuppliedSensorValue(query) && isMetricEvaluationQuestion(query) && !isMeasurementMethodQuestion(query) && !/nguyen ly|tai sao|vi sao/.test(q)) return null;
   const technical = /esp32|bmp180|bmp280|dht11|bme280|a3144|hall|oled|mqtt|broker|firmware|gpio|sda|scl|dau noi|noi chan|so do|phu kien|linh kien|cam bien|nam cham|pheu|dien tro|i2c|tu loc|mass|gnd|mach|hieu chuan|nguyen ly|\bgau\b|khoa dem|debounce|(?:tram|he thong|du an).*hoat dong|luong hoat dong|tu nuoc mua/.test(q);
   if (/cong thuc/.test(q)) return null; // Preserve the configured factor in the existing formula reply.
   const explanation = isProjectExplanationQuery(query) || /do phan giai/.test(q);

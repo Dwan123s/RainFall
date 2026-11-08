@@ -2,10 +2,13 @@ import type { StationContext } from './rainsense-ai';
 import { normalizeTimePhrase, parseTimeDuration, hasFutureTime } from './time-request';
 import { calculateDewPoint } from './utils/weather-calc';
 import { nearestRainWindow, isWaterTestQuery, rainNumber, rainRateAssessment } from './rain-interpretation';
+import { temperatureFeeling, pressureInterpretation } from './metric-interpretation';
+import { isMeasurementMethodQuestion, knowledgeQuestionTopics } from './question-intent';
 
 /** Everyday weather questions get a short interpretation, rather than a table of all sensors. */
 export function isWeatherSummaryQuery(query: string): boolean {
   const q = normalizeTimePhrase(query);
+  if (isMeasurementMethodQuestion(query) || knowledgeQuestionTopics(query).length) return false;
   if (!/thoi tiet|dep troi|troi.*(?:hom nay|the nao|nhu nao)|hom nay.*(?:co mua|mua khong)|(?:co mua|mua khong).*hom nay/.test(q)) return false;
   if (/hom kia|thu (?:hai|ba|tu|nam|sau|bay)|chu nhat/.test(q)) return false;
   if (hasFutureTime(q) || parseTimeDuration(q).status !== 'none') return false;
@@ -20,10 +23,7 @@ export function getWeatherSummaryReply(query: string, c: StationContext, now = n
   const fresh = c.isOnline && Number.isFinite(age) && age >= -60000 && age <= 300000;
   const t = c.currentTemp, rh = c.currentHumid;
   const dew = t !== null && rh !== null && rh > 0 ? calculateDewPoint(t, rh) : null;
-  const thermal = t === null ? rh === null ? '' : rh >= 85 ? 'không khí khá ẩm' : 'đã có số đo độ ẩm không khí' :
-    t >= 32 ? dew !== null && dew >= 21 ? 'khá nóng và oi ẩm' : 'khá nóng' :
-    t < 18 ? 'khá mát, có thể cảm thấy lạnh' : dew !== null && dew >= 21 ? 'ấm và khá ẩm' :
-    t <= 30 && rh !== null ? rh < 35 ? 'khá khô' : 'khá dễ chịu về nhiệt độ và độ ẩm' : 'ấm';
+  const thermal = t === null ? rh === null ? '' : rh >= 85 ? 'không khí khá ẩm' : 'đã có số đo độ ẩm không khí' : temperatureFeeling(t, rh);
   const w = nearestRainWindow(c);
   const windowAge = w ? now.getTime() - Date.parse(w.to) : NaN;
   const usableWindow = w && windowAge >= -60000 && windowAge <= 300000 && Date.parse(w.to) > Date.parse(w.from) ? w : undefined;
@@ -37,8 +37,9 @@ export function getWeatherSummaryReply(query: string, c: StationContext, now = n
   else if ((c.todayRainMm ?? 0) > 0 && !testing) lines.push(`Hôm nay trạm đã ghi nhận mưa${thermal ? `; lúc này ${thermal}` : ''}.`);
   else if (pleasant) lines.push('Lúc này có thể xem là khá đẹp trời xét riêng nhiệt độ và độ ẩm; trạm chưa ghi nhận nhịp mưa trong cửa sổ gần nhất.');
   else if (thermal) lines.push(`${fresh ? 'Hiện tại' : 'Theo bản ghi'}, điều kiện ${thermal}.`);
-  const values = [t === null ? '' : `${rainNumber(t)} °C`, rh === null ? '' : `RH ${rainNumber(rh)}%`, t === null && rh === null && c.currentPress !== null ? `khí áp ${rainNumber(c.currentPress)} hPa` : ''].filter(Boolean);
+  const values = [t === null ? '' : `${rainNumber(t)} °C`, rh === null ? '' : `RH ${rainNumber(rh)}%`, c.currentPress !== null ? `khí áp ${rainNumber(c.currentPress)} hPa` : ''].filter(Boolean);
   if (values.length) lines.push(`Trạm đo ${values.join(', ')}.`);
+  if (c.weatherFeatures?.pressureDelta3hHpa != null) lines.push(pressureInterpretation(c.weatherFeatures.pressureDelta3hHpa));
   if (t === null && rh === null && c.currentPress !== null) lines.push('Riêng khí áp chưa cho biết trời dễ chịu, nắng hay mưa.');
   if (usableWindow && !testing) {
     const minutes = (Date.parse(usableWindow.to) - Date.parse(usableWindow.from)) / 60000;

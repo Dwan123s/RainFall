@@ -4,9 +4,12 @@ import { hasFutureTime } from './time-request';
 import { calculateDewPoint } from './utils/weather-calc';
 import { observationMetrics } from './observation-request';
 import { describeRainWindow, nearestRainWindow, rainNumber, isWaterTestQuery } from './rain-interpretation';
+import { isMeasurementMethodQuestion, knowledgeQuestionTopics, isMetricEvaluationQuestion } from './question-intent';
+import { temperatureInterpretation, humidityInterpretation, pressureInterpretation } from './metric-interpretation';
 
 export function isStationAnalysisQuery(query: string): boolean {
   const q = foldText(query);
+  if (isMeasurementMethodQuestion(query) || knowledgeQuestionTopics(query).length) return false;
   if (/ngung|ngun|tanh|mua lai|sang.*chieu|chieu.*sang/.test(q) && !/nguy co|ngap|lu lut|sat lo/.test(q)) return false;
   if (/la gi|cach|nguyen ly|tai sao|vi sao|hieu chuan/.test(q) || hasFutureTime(q)) return false;
   return /nguy co|ngap|lu lut|lu quet|sat lo|mua\s+(?:nhieu|it|to|nho)\b|mua.*(?:nhu nao|the nao)|phan tich|nhan dinh|danh gia|du doan|du bao.*(?:thong so|cam bien)|(?:thong so|cam bien).*du bao/.test(q) && /thoi tiet|moi truong|mua|nhiet do|do am|khi ap|ap suat|cam bien|thong so|ngap|lu lut|lu quet|sat lo/.test(q);
@@ -66,7 +69,8 @@ export function stationAnalysisReply(c: StationContext, now = new Date(), query 
 
 export function getSensorScenarioReply(query: string): string | null {
   const q = foldText(query);
-  if (!/phan tich|nhan dinh|du bao|du doan|mua khong|sap mua|co mua|co chac/.test(q)) return null;
+  if (!/phan tich|nhan dinh|du bao|du doan|mua khong|sap mua|co mua|co chac/.test(q) && !isMetricEvaluationQuestion(query)) return null;
+  if (isMeasurementMethodQuestion(query) || knowledgeQuestionTopics(query).length) return null;
   const n = '(-?\\d+(?:[.,]\\d+)?)';
   const temps = Array.from(q.matchAll(new RegExp(`${n}\\s*(?:°\\s*c|do\\s*c)`, 'g')));
   const humidity = Array.from(q.matchAll(new RegExp(`${n}\\s*%`, 'g')));
@@ -80,6 +84,10 @@ export function getSensorScenarioReply(query: string): string | null {
   if (t !== null && (t < -40 || t > 85) || h !== null && (h < 0 || h > 100) || p !== null && (p < 300 || p > 1100)) return 'Bộ số bạn cung cấp có giá trị ngoài khoảng kiểm tra của RainSense. Hãy kiểm tra °C, %RH, hPa/Pa và giá trị cảm biến trước khi phân tích; mình chưa thay chúng vào số đo của trạm.';
   const values = [t === null ? '' : `${t} °C`, h === null ? '' : `RH ${h}%`, p === null ? '' : `${p} hPa`].filter(Boolean);
   let text = `Theo bộ số bạn cung cấp (${values.join(', ')}), chưa đối chiếu với trạm: `;
+  if (isMetricEvaluationQuestion(query)) {
+    const parts = [t === null ? '' : temperatureInterpretation(t, h), h === null ? '' : humidityInterpretation(h), p === null ? '' : pressureInterpretation()].filter(Boolean);
+    return text + parts.join(' ');
+  }
   if (t !== null && h !== null && h > 0) {
     const dew = calculateDewPoint(t, h);
     text += `điểm sương khoảng ${dew} °C, cách nhiệt độ ${Number((t - dew).toFixed(1))} °C. `;
