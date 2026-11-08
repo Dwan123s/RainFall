@@ -19,6 +19,7 @@ for (const envPath of envCandidates) {
 dotenv.config();
 
 const StationProfileSchema = z.object({
+  environmentSensors: z.enum(['unknown', 'bme280', 'bmp180-dht11']).default('unknown'),
   hardwareVariant: z.enum(['unknown', 'oled-s3', 'rainsense-s3']).default('unknown'),
   wiringVerified: z.boolean().default(false),
   latitude: z.number().min(-90).max(90).optional(),

@@ -2,7 +2,7 @@ import type { ChatTurn } from './rainsense-ai';
 import { foldText } from './project-knowledge';
 import { hasFutureTime } from './time-request';
 
-const followUp = /^(?:vay|the|con|neu vay|thi)\b/;
+const followUp = /^(?:vay|the|con|neu vay|thi|no|cai nay|bo phan nay|linh kien nay)\b/;
 const hasDay = /hom nay|hom qua|(?:sang|chieu|toi|dem) nay|hien tai|luc nay|ngay mai|chieu mai|toi mai|sang mai|ngay kia|\bmai\b|ngay\s*\d|\d{1,2}[/-]\d{1,2}/;
 const isForecast = /du bao|ngay mai|chieu mai|toi mai|sang mai|ngay kia|gio toi|xac suat.*mua/;
 
@@ -10,7 +10,7 @@ function resolveAgainst(message: string, previous: string): string {
   const q = foldText(message.trim());
   if (!previous || !followUp.test(q) || q.length > 180) return message;
   const p = foldText(previous);
-  const hardware = q.match(/bme280|a3144|hall|oled|esp32(?:-s3)?|mqtt/g);
+  const hardware = q.match(/bmp180|bmp280|dht11|bme280|a3144|hall|oled|esp32(?:-s3)?|mqtt/g);
   // An explicit new hardware topic must not inherit an earlier weather forecast.
   if (hardware?.length) return message;
   if ((isForecast.test(p) || hasFutureTime(p)) && !/hien tai|luc nay|bay gio|dang do|dang mua|hom qua|vua qua|gan nhat/.test(q)) {
@@ -19,9 +19,11 @@ function resolveAgainst(message: string, previous: string): string {
     return `Dự báo ${message}${evening}${day ? ` (${day})` : ''}`;
   }
   if (/nguon|dien ap|dau noi|noi chan|nguyen ly/.test(q)) {
-    const entities = Array.from(new Set(p.match(/bme280|a3144|oled|esp32-s3/g) ?? []));
+    const entities = Array.from(new Set(p.match(/bmp180|bmp280|dht11|bme280|a3144|oled|esp32-s3/g) ?? []));
     if (entities.length === 1) return `${message} (${entities[0].toUpperCase()})`;
   }
+  const subjects = Array.from(new Set(p.match(/bmp180|bmp280|dht11|bme280|a3144|oled|esp32-s3|gau lat|pheu|nam cham/g) ?? []));
+  if (subjects.length === 1 && /hoat dong|nguyen ly|dung.*gi|lam.*gi|vai tro|co do|do duoc|dien tro|keo len|nguon|dien ap/.test(q)) return `${message} (${subjects[0]})`;
   const topics = [
     { pattern: /nhiet do/, label: 'nhiệt độ' }, { pattern: /do am/, label: 'độ ẩm' },
     { pattern: /khi ap|ap suat/, label: 'khí áp' }, { pattern: /luong mua/, label: 'lượng mưa' }

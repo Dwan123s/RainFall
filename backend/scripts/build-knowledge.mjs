@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { syncFrontendShared } from './sync-frontend-shared.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const directory = path.join(root, 'docs/knowledge');
@@ -28,3 +29,4 @@ let existing = '';
 try { existing = readFileSync(target, 'utf8'); } catch { /* First build. */ }
 if (existing !== output) writeFileSync(target, output, 'utf8');
 console.log(`Knowledge index: ${chunks.length} approved sections`);
+syncFrontendShared();

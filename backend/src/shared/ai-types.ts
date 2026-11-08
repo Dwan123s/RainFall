@@ -1,6 +1,7 @@
 export type HardwareVariant = 'unknown' | 'oled-s3' | 'rainsense-s3';
 
 export interface StationProfile {
+  environmentSensors?: 'unknown' | 'bme280' | 'bmp180-dht11';
   hardwareVariant: HardwareVariant;
   wiringVerified: boolean;
   latitude?: number;
@@ -43,6 +44,7 @@ export interface WeatherFeatures {
 }
 
 export interface ForecastPeriod {
+  pressureHpa?: number | null;
   from: string;
   to: string;
   temperatureC: number | null;

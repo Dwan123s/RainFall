@@ -3,12 +3,12 @@
 ## Đã triển khai
 
 - Express điều phối chat; Next.js chỉ kiểm tra request và proxy. Khóa AI chỉ cần ở backend.
-- Kho kiến thức có 9 tài liệu, chia thành 19 mục; tìm kiếm từ khóa tiếng Việt có chuẩn hóa dấu, giữ nguồn và phiên bản. Đây là RAG cục bộ theo từ khóa, không phải embedding hay mô hình đã fine-tune. Phân biệt riêng nguồn cấp BME280, Hall A3144 và module chưa rõ model.
+- Kho kiến thức có 14 tài liệu, chia thành 36 mục; tìm kiếm từ khóa tiếng Việt có chuẩn hóa dấu, giữ nguồn và phiên bản. Đây là RAG cục bộ theo từ khóa, không phải embedding hay mô hình đã fine-tune. Phân biệt riêng nguồn cấp BME280, Hall A3144 và module chưa rõ model.
 - Biên dịch tài liệu vào TypeScript khi dev/test/build; chỉ lấy `status=verified`, không đọc toàn bộ repository hoặc firmware chứa thông tin kết nối vào prompt.
 - Tính gầu lật bằng code trước khi gọi AI, dùng hệ số người dùng nêu hoặc cấu hình trạm; giữ nguyên lịch sử hiệu chuẩn của sự kiện.
 - Tính thống kê môi trường, thay đổi nhiệt độ 1 giờ và khí áp 3 giờ; kiểm tra độ phủ và loại số đo ngoài khoảng hợp lệ. Không coi thiếu chuỗi là ổn định, không gọi khí áp giảm là bão.
 - Context có thời điểm đo, nguồn PostgreSQL/RAM/hỗn hợp, chế độ demo, độ mới và cờ chạm giới hạn lịch sử. Ghi nhận nguồn thực tế của từng request, kể cả khi query DB thất bại rồi đọc RAM.
-- Dự báo Open-Meteo theo tọa độ cấu hình; không cần Gemini cho câu hỏi dự báo. Kiểm tra đơn vị, mốc giờ, giá trị thiếu và thời hạn cache 10 phút; không lấy bản cache quá hạn khi API lỗi.
+- Dự báo Open-Meteo gồm nhiệt độ, RH, khí áp bề mặt và giáng thủy theo tọa độ cấu hình; không cần Gemini cho câu hỏi dự báo. Kiểm tra đơn vị, mốc giờ, giá trị thiếu và thời hạn cache 10 phút; không lấy bản cache quá hạn khi API lỗi.
 - Cửa sổ chat hiển thị chế độ AI/dự phòng/tính toán/dự báo, nguồn tham khảo và cảnh báo dữ liệu cũ. Đổi trạm hoặc làm mới chat sẽ bỏ phản hồi đang chạy của cuộc hỏi cũ.
 - Câu hỏi nối tiếp giữ chủ đề và khoảng thời gian từ các lượt người dùng: “ngày mai” → “vậy chiều thì sao?” vẫn hỏi chiều ngày mai. Chủ đề mới và ngày được nêu rõ luôn ưu tiên; không sao chép số đo cũ trong hội thoại thành dữ liệu hiện tại.
 - Script train thử nghiệm nhiệt độ sau 60 phút từ dữ liệu quan trắc thật, có đánh giá độc lập theo thời gian; chưa tự động đưa mô hình vào chatbot.
@@ -153,3 +153,10 @@ Các bài kiểm thử mới dùng số đo tổng hợp trong fixture và xác 
 - Cảnh báo RAM áp dụng cả khi chỉ có sự kiện gầu hoặc một phần cảm biến hợp lệ. Context của báo cáo cập nhật đồng bộ khoảng thống kê, nguồn và trạng thái khí áp. Biệt danh múi giờ Việt Nam Asia/Saigon dùng cùng ranh giới ngày/tháng với Asia/Ho_Chi_Minh.
 
 Bộ kiểm thử hồi quy `backend/src/tests/ai-regressions.test.ts` được bổ sung từ các lỗi tái hiện được trước khi sửa. Việc kiểm thử không thay cho đánh giá dự báo ngoài thực địa hoặc bảo đảm mọi cách diễn đạt tiếng Việt đều đã được hỗ trợ.
+
+
+## Chế độ chuyên gia RainSense (09/11/2026)
+
+Xem `RAINSENSE_AI_EXPERT.md` để cấu hình hội thoại mở, hồ sơ BMP180/DHT11/BME280, tọa độ dự báo và bộ câu hỏi nghiệm thu. Mặc định trả lời ngắn; chỉ mở rộng khi người dùng yêu cầu chi tiết. Kiến thức đã đối chiếu firmware `1640dba`: mã OLED hiện dùng BMP180 + DHT11, không tự nhận diện mạch đang nạp chỉ từ cờ `bme280_found`.
+
+`npm run knowledge:build --workspace=backend` cũng đồng bộ các module thuần TypeScript từ `backend/src/shared` sang `frontend/shared`. Bản sao được commit để frontend tiếp tục build độc lập theo cấu trúc triển khai hiện tại; CI kiểm tra bản sao không lệch sau khi biên dịch kiến thức.

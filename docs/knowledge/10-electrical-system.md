@@ -1,0 +1,10 @@
+<!-- {"documentId":"electrical-system","title":"Nguồn, bus và phụ kiện điện","version":"1.0","hardwareVariant":"all","firmwareVersion":"any","verifiedAt":"2026-11-09","status":"verified","source":"https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/i2c.html","sectionSources":{"Nguồn và mass chung":"https://github.com/Dwan123s/RainFall/tree/main/firmware","OLED và phụ kiện bảo vệ":"https://github.com/Dwan123s/RainFall/tree/main/firmware"},"keywords":["nguồn","mass","gnd","tụ","lọc","điện trở","kéo lên","pullup","i2c","sda","scl","oled","hộp","dây"]} -->
+
+## Điện trở kéo lên và I2C
+SDA/SCL của I2C dùng ngõ ra open-drain: thiết bị kéo mức thấp, điện trở kéo lên tạo mức cao. OLED và cảm biến có thể dùng chung bus nếu địa chỉ khác nhau, mức logic phù hợp và dây đủ tốt. Trở tích hợp trên nhiều module mắc song song có thể làm tổng trở quá nhỏ; dây dài và điện dung lớn làm cạnh lên chậm. Kiểm tra địa chỉ bằng quét I2C, GND chung và nguồn kéo lên trước khi đổi code. Không tự coi điện áp VIN của module là điện áp được phép đưa vào GPIO.
+
+## Nguồn và mass chung
+Nguồn cấp mạch và mức logic tín hiệu phải được kiểm tra riêng. GND chung tạo mốc tham chiếu cho ESP32-S3, Hall và cảm biến; OUT không có mốc chung có thể bị đọc sai. Tụ lọc gần module giúp giảm nhiễu nguồn, nhưng không sửa được nguồn yếu, đấu sai hoặc quá áp. Khi trạm reset lúc Wi-Fi truyền, kiểm tra điện áp ngay trên mạch, dây/đầu nối và log reset trước khi kết luận lỗi MQTT. Chưa có sơ đồ/BOM thực tế thì không khẳng định trị số tụ, trở hay công suất nguồn đang lắp.
+
+## OLED và phụ kiện bảo vệ
+OLED SH1106 hiển thị tại chỗ, không thay thế bộ nhớ lịch sử hay kết nối MQTT. Hỏng màn hình không tự chứng minh mất đo hoặc mất dữ liệu; đối chiếu telemetry và log I2C. Hộp bảo vệ, đầu nối kín, lưới chắn rác và giá cân bằng phục vụ độ bền; phần cảm biến môi trường vẫn cần thông khí và tránh bức xạ/nước trực tiếp. Điện áp nguồn OLED tùy module và mạch ổn áp, không dùng dải điện áp Hall A3144 để cấp cho màn hình.

@@ -3,10 +3,10 @@ export const KNOWLEDGE_CHUNKS = [
   {
     "documentId": "project-overview",
     "title": "Luồng hoạt động RainSense — Luồng từ nước mưa đến website",
-    "version": "1.0",
+    "version": "1.1",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-02",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://github.com/Dwan123s/RainFall",
     "keywords": [
@@ -20,15 +20,15 @@ export const KNOWLEDGE_CHUNKS = [
     ],
     "id": "project-overview-0",
     "path": "docs/knowledge/01-project-overview.md",
-    "text": "Nước đi qua phễu vào cơ cấu gầu lật. Nam châm chuyển động cùng gầu làm Hall A3144 thay đổi tín hiệu; ESP32-S3 đếm cạnh ngắt hợp lệ. BME280 đo nhiệt độ, độ ẩm tương đối và khí áp. Firmware gửi bản tin qua Wi-Fi và MQTT. Backend Express chuẩn hóa dữ liệu, kiểm tra trùng, tính lượng mưa và lưu qua Prisma/PostgreSQL; Socket.IO cập nhật dashboard Next.js. Backend có bộ nhớ RAM dự phòng khi không đọc được database, nên lịch sử ở chế độ này có thể thiếu và mất khi khởi động lại."
+    "text": "Nước đi qua phễu vào cơ cấu gầu lật. Nam châm chuyển động cùng gầu làm Hall A3144 thay đổi tín hiệu; ESP32-S3 đếm cạnh ngắt hợp lệ. Firmware OLED hiện đọc BMP180 (nhiệt độ/khí áp) và DHT11 (RH); bản dùng BME280 đo cả ba đại lượng. Firmware gửi bản tin qua Wi-Fi và MQTT. Backend Express chuẩn hóa dữ liệu, kiểm tra trùng, tính lượng mưa và lưu qua Prisma/PostgreSQL; Socket.IO cập nhật dashboard Next.js. Backend có bộ nhớ RAM dự phòng khi không đọc được database, nên lịch sử ở chế độ này có thể thiếu và mất khi khởi động lại."
   },
   {
     "documentId": "project-overview",
     "title": "Luồng hoạt động RainSense — Chức năng website và chatbot",
-    "version": "1.0",
+    "version": "1.1",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-02",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://github.com/Dwan123s/RainFall",
     "keywords": [
@@ -47,10 +47,10 @@ export const KNOWLEDGE_CHUNKS = [
   {
     "documentId": "hardware-bom",
     "title": "Mạch, cảm biến và phụ kiện — Vai trò mạch và phụ kiện",
-    "version": "1.0",
+    "version": "1.1",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-02",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
     "keywords": [
@@ -67,15 +67,15 @@ export const KNOWLEDGE_CHUNKS = [
     ],
     "id": "hardware-bom-0",
     "path": "docs/knowledge/02-hardware-bom.md",
-    "text": "ESP32-S3 là bộ điều khiển đọc cảm biến, đếm xung và truyền MQTT qua Wi-Fi. BME280 đo nhiệt độ, độ ẩm tương đối và khí áp; không đo lượng mưa. Phễu có diện tích miệng xác định để thu nước; hai ngăn gầu luân phiên nhận nước và lật. Nam châm và Hall A3144 phát hiện chuyển động; Hall không tự đo mm. OLED SH1106 có trong firmware IOT_MQTT_TLS để hiển thị tại chỗ. Nguồn, dây, trở kéo lên, tụ lọc, hộp bảo vệ và giá đặt là phụ kiện cần kiểm tra theo mạch thực tế; repository chưa xác nhận mọi mã phụ kiện đang lắp."
+    "text": "ESP32-S3 đọc cảm biến, đếm xung và truyền MQTT. Mã OLED hiện dùng BMP180 đo nhiệt độ/khí áp, DHT11 cung cấp RH; BME280 thuộc biến thể khác/cũ. BME280 đo nhiệt độ, độ ẩm tương đối và khí áp; không đo lượng mưa. Phễu có diện tích miệng xác định để thu nước; hai ngăn gầu luân phiên nhận nước và lật. Nam châm và Hall A3144 phát hiện chuyển động; Hall không tự đo mm. OLED SH1106 có trong firmware IOT_MQTT_TLS để hiển thị tại chỗ. Nguồn, dây, trở kéo lên, tụ lọc, hộp bảo vệ và giá đặt là phụ kiện cần kiểm tra theo mạch thực tế; repository chưa xác nhận mọi mã phụ kiện đang lắp."
   },
   {
     "documentId": "hardware-bom",
     "title": "Mạch, cảm biến và phụ kiện — Cách Hall và gầu lật phối hợp",
-    "version": "1.0",
+    "version": "1.1",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-02",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
     "keywords": [
@@ -97,10 +97,10 @@ export const KNOWLEDGE_CHUNKS = [
   {
     "documentId": "wiring-cautions",
     "title": "Đấu nối và các điểm đã kiểm chứng từ tài liệu — Xác định phiên bản trước khi đấu nối",
-    "version": "1.0",
+    "version": "1.1",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-02",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/peripherals/gpio.html",
     "sectionSources": {
@@ -120,15 +120,15 @@ export const KNOWLEDGE_CHUNKS = [
     ],
     "id": "wiring-cautions-0",
     "path": "docs/knowledge/03-wiring-verified.md",
-    "text": "Repository có hai bản firmware, chưa xác nhận từ xa bản đang nạp và dây thực tế. IOT_MQTT_TLS khai báo SDA=GPIO8, SCL=GPIO9, Hall=GPIO10, OLED SH1106, hệ số trong mã 0,64 mm/lần. Đây là cấu hình trong mã, chỉ hướng dẫn thao tác khi biến thể và đấu nối thực tế đã được xác minh. RainSense_ESP32S3 khai báo SDA=21, SCL=22, Hall=4; SCL=22 không hợp lệ cho ESP32-S3 vì chip chỉ có GPIO0–21 và GPIO26–48. Không dùng sơ đồ cũ này làm hướng dẫn đấu nối, không tự chọn chân thay thế khi chưa có pinout board."
+    "text": "Repository có hai bản firmware, chưa xác nhận từ xa bản đang nạp và dây thực tế. IOT_MQTT_TLS khai báo SDA=GPIO8, SCL=GPIO9, Hall=GPIO10, DHT11 DATA=GPIO4, BMP180 và OLED SH1106 trên I2C, hệ số trong mã 0,64 mm/lần. Đây là cấu hình trong mã, chỉ hướng dẫn thao tác khi biến thể và đấu nối thực tế đã được xác minh. RainSense_ESP32S3 khai báo SDA=21, SCL=22, Hall=4; SCL=22 không hợp lệ cho ESP32-S3 vì chip chỉ có GPIO0–21 và GPIO26–48. Không dùng sơ đồ cũ này làm hướng dẫn đấu nối, không tự chọn chân thay thế khi chưa có pinout board."
   },
   {
     "documentId": "wiring-cautions",
     "title": "Đấu nối và các điểm đã kiểm chứng từ tài liệu — Nguồn Hall A3144 và mức logic",
-    "version": "1.0",
+    "version": "1.1",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-02",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://www.allegromicro.com/~/media/Files/Datasheets/A3141-2-3-4-Datasheet.ashx?la=en",
     "sectionSources": {
@@ -153,10 +153,10 @@ export const KNOWLEDGE_CHUNKS = [
   {
     "documentId": "firmware-mqtt",
     "title": "Firmware và MQTT — Các biến thể firmware và bản tin",
-    "version": "1.0",
+    "version": "1.1",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-02",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
     "keywords": [
@@ -174,15 +174,15 @@ export const KNOWLEDGE_CHUNKS = [
     ],
     "id": "firmware-mqtt-0",
     "path": "docs/knowledge/04-firmware-mqtt.md",
-    "text": "IOT_MQTT_TLS có OLED SH1106, SDA8/SCL9/Hall10, khoảng khóa 200 ms và hệ số trong mã 0,64 mm/lần; gửi topic weather/station01/data và weather/station01/status. RainSense_ESP32S3 dùng topic weather/{deviceId}/telemetry, /rain, /status, /command, /command/ack, /config; hệ số mặc định trong mã 0,25 mm/lần. Không trộn topic, pinout và hệ số giữa hai bản; dùng cấu hình trạm/backend và sự kiện để xác định số đo hiện hành."
+    "text": "IOT_MQTT_TLS hiện dùng BMP180 + DHT11, OLED SH1106, SDA8/SCL9/Hall10/DHT4, khoảng khóa 200 ms và hệ số trong mã 0,64 mm/lần; gửi topic weather/station01/data và weather/station01/status. RainSense_ESP32S3 dùng topic weather/{deviceId}/telemetry, /rain, /status, /command, /command/ack, /config; hệ số mặc định trong mã 0,25 mm/lần. Không trộn topic, pinout và hệ số giữa hai bản; dùng cấu hình trạm/backend và sự kiện để xác định số đo hiện hành."
   },
   {
     "documentId": "firmware-mqtt",
     "title": "Firmware và MQTT — Truyền và lưu dữ liệu",
-    "version": "1.0",
+    "version": "1.1",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-02",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
     "keywords": [
@@ -367,10 +367,10 @@ export const KNOWLEDGE_CHUNKS = [
   {
     "documentId": "troubleshooting",
     "title": "Kiểm tra lỗi trạm — Không có số đo hoặc trạm ngoại tuyến",
-    "version": "1.0",
+    "version": "1.1",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-02",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://github.com/Dwan123s/RainFall",
     "keywords": [
@@ -388,15 +388,15 @@ export const KNOWLEDGE_CHUNKS = [
     ],
     "id": "troubleshooting-0",
     "path": "docs/knowledge/07-troubleshooting.md",
-    "text": "Kiểm tra nguồn, Wi-Fi, timestamp telemetry, mã trạm và topic đúng biến thể firmware. Broker kết nối hoặc heartbeat mới chưa chứng minh bản đo mới. Với BME280, đối chiếu pinout board và firmware, nguồn, mass, địa chỉ I2C; quét I2C và xem log trước khi kết luận hỏng. OLED và BME280 có thể dùng chung bus nhưng phải đúng địa chỉ và nguồn. Không thấy bản tin mới thì báo dữ liệu cũ, không tự điền 0 cho cảm biến."
+    "text": "Kiểm tra nguồn, Wi-Fi, timestamp telemetry, mã trạm và topic đúng biến thể firmware. Broker kết nối hoặc heartbeat mới chưa chứng minh bản đo mới. Với cảm biến I2C BMP180/BME280, đối chiếu pinout board và firmware, nguồn, mass, địa chỉ I2C; quét I2C và xem log trước khi kết luận hỏng. OLED và BME280 có thể dùng chung bus nhưng phải đúng địa chỉ và nguồn. Không thấy bản tin mới thì báo dữ liệu cũ, không tự điền 0 cho cảm biến."
   },
   {
     "documentId": "troubleshooting",
     "title": "Kiểm tra lỗi trạm — Gầu không đếm hoặc đếm sai",
-    "version": "1.0",
+    "version": "1.1",
     "hardwareVariant": "all",
     "firmwareVersion": "any",
-    "verifiedAt": "2026-11-02",
+    "verifiedAt": "2026-11-09",
     "status": "verified",
     "source": "https://github.com/Dwan123s/RainFall",
     "keywords": [
@@ -486,5 +486,533 @@ export const KNOWLEDGE_CHUNKS = [
     "id": "bme280-power-0",
     "path": "docs/knowledge/09-bme280-power.md",
     "text": "IC BME280 có VDD 1,71–3,6 V và VDDIO 1,2–3,6 V theo Bosch; 3,3 V nằm trong cả hai dải. Không cấp trực tiếp 5 V vào VDD/VDDIO của IC. Một module breakout có thể có bộ ổn áp và mạch chuyển mức riêng, nhưng phải kiểm tra đúng model và sơ đồ module trước khi dùng chân VIN ở điện áp khác. Khi ghép ESP32-S3, kiểm tra cả mức kéo lên SDA/SCL và mass chung. Dải nguồn của Hall A3144 không áp dụng cho BME280."
+  },
+  {
+    "documentId": "electrical-system",
+    "title": "Nguồn, bus và phụ kiện điện — Điện trở kéo lên và I2C",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-reference/peripherals/i2c.html",
+    "sectionSources": {
+      "Nguồn và mass chung": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
+      "OLED và phụ kiện bảo vệ": "https://github.com/Dwan123s/RainFall/tree/main/firmware"
+    },
+    "keywords": [
+      "nguồn",
+      "mass",
+      "gnd",
+      "tụ",
+      "lọc",
+      "điện trở",
+      "kéo lên",
+      "pullup",
+      "i2c",
+      "sda",
+      "scl",
+      "oled",
+      "hộp",
+      "dây"
+    ],
+    "id": "electrical-system-0",
+    "path": "docs/knowledge/10-electrical-system.md",
+    "text": "SDA/SCL của I2C dùng ngõ ra open-drain: thiết bị kéo mức thấp, điện trở kéo lên tạo mức cao. OLED và cảm biến có thể dùng chung bus nếu địa chỉ khác nhau, mức logic phù hợp và dây đủ tốt. Trở tích hợp trên nhiều module mắc song song có thể làm tổng trở quá nhỏ; dây dài và điện dung lớn làm cạnh lên chậm. Kiểm tra địa chỉ bằng quét I2C, GND chung và nguồn kéo lên trước khi đổi code. Không tự coi điện áp VIN của module là điện áp được phép đưa vào GPIO."
+  },
+  {
+    "documentId": "electrical-system",
+    "title": "Nguồn, bus và phụ kiện điện — Nguồn và mass chung",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
+    "sectionSources": {
+      "Nguồn và mass chung": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
+      "OLED và phụ kiện bảo vệ": "https://github.com/Dwan123s/RainFall/tree/main/firmware"
+    },
+    "keywords": [
+      "nguồn",
+      "mass",
+      "gnd",
+      "tụ",
+      "lọc",
+      "điện trở",
+      "kéo lên",
+      "pullup",
+      "i2c",
+      "sda",
+      "scl",
+      "oled",
+      "hộp",
+      "dây"
+    ],
+    "id": "electrical-system-1",
+    "path": "docs/knowledge/10-electrical-system.md",
+    "text": "Nguồn cấp mạch và mức logic tín hiệu phải được kiểm tra riêng. GND chung tạo mốc tham chiếu cho ESP32-S3, Hall và cảm biến; OUT không có mốc chung có thể bị đọc sai. Tụ lọc gần module giúp giảm nhiễu nguồn, nhưng không sửa được nguồn yếu, đấu sai hoặc quá áp. Khi trạm reset lúc Wi-Fi truyền, kiểm tra điện áp ngay trên mạch, dây/đầu nối và log reset trước khi kết luận lỗi MQTT. Chưa có sơ đồ/BOM thực tế thì không khẳng định trị số tụ, trở hay công suất nguồn đang lắp."
+  },
+  {
+    "documentId": "electrical-system",
+    "title": "Nguồn, bus và phụ kiện điện — OLED và phụ kiện bảo vệ",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
+    "sectionSources": {
+      "Nguồn và mass chung": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
+      "OLED và phụ kiện bảo vệ": "https://github.com/Dwan123s/RainFall/tree/main/firmware"
+    },
+    "keywords": [
+      "nguồn",
+      "mass",
+      "gnd",
+      "tụ",
+      "lọc",
+      "điện trở",
+      "kéo lên",
+      "pullup",
+      "i2c",
+      "sda",
+      "scl",
+      "oled",
+      "hộp",
+      "dây"
+    ],
+    "id": "electrical-system-2",
+    "path": "docs/knowledge/10-electrical-system.md",
+    "text": "OLED SH1106 hiển thị tại chỗ, không thay thế bộ nhớ lịch sử hay kết nối MQTT. Hỏng màn hình không tự chứng minh mất đo hoặc mất dữ liệu; đối chiếu telemetry và log I2C. Hộp bảo vệ, đầu nối kín, lưới chắn rác và giá cân bằng phục vụ độ bền; phần cảm biến môi trường vẫn cần thông khí và tránh bức xạ/nước trực tiếp. Điện áp nguồn OLED tùy module và mạch ổn áp, không dùng dải điện áp Hall A3144 để cấp cho màn hình."
+  },
+  {
+    "documentId": "rain-metrology",
+    "title": "Đo mưa bằng gầu lật và sai số — Phễu, thể tích và hiệu chuẩn",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
+    "sectionSources": {
+      "Mưa giả và giới hạn cơ cấu": "https://www.bom.gov.au/resources/learn-and-explore/radar-and-equipment-knowledge-centre/flood-river-and-rain-gauges"
+    },
+    "keywords": [
+      "phễu",
+      "diện tích",
+      "đường kính",
+      "thể tích",
+      "ml",
+      "cm2",
+      "gầu",
+      "cân bằng",
+      "hiệu chuẩn",
+      "sai số",
+      "nam châm",
+      "debounce",
+      "khóa",
+      "độ phân giải",
+      "mưa giả"
+    ],
+    "id": "rain-metrology-0",
+    "path": "docs/knowledge/11-rain-metrology.md",
+    "text": "1 mm mưa tương đương 1 lít nước trên 1 m². Phễu biến độ sâu mưa thành thể tích chảy vào gầu; diện tích tính theo miệng hứng, không theo đáy lỗ thoát. Với phễu tròn đường kính d, A=πd²/4. Khi V tính bằng mL, A bằng cm² và N là số nhịp dương, k=10V/(A×N) mm/lần. Ghi lượng nước còn trong gầu trước/sau thử, rò rỉ và số nhịp thực; lặp ở nhiều lưu lượng để kiểm tra độ lặp lại. Hệ số tính ra chưa tự cập nhật cấu hình."
+  },
+  {
+    "documentId": "rain-metrology",
+    "title": "Đo mưa bằng gầu lật và sai số — Cân bằng gầu, nam châm và khóa chống đếm",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
+    "sectionSources": {
+      "Mưa giả và giới hạn cơ cấu": "https://www.bom.gov.au/resources/learn-and-explore/radar-and-equipment-knowledge-centre/flood-river-and-rain-gauges"
+    },
+    "keywords": [
+      "phễu",
+      "diện tích",
+      "đường kính",
+      "thể tích",
+      "ml",
+      "cm2",
+      "gầu",
+      "cân bằng",
+      "hiệu chuẩn",
+      "sai số",
+      "nam châm",
+      "debounce",
+      "khóa",
+      "độ phân giải",
+      "mưa giả"
+    ],
+    "id": "rain-metrology-1",
+    "path": "docs/knowledge/11-rain-metrology.md",
+    "text": "Gầu cần nằm cân để hai ngăn có ngưỡng lật gần nhau; ma sát, lệch trục hoặc nước bám làm thể tích lật thay đổi. Nam châm phải đi qua vùng Hall đủ để tạo một cạnh ngắt hợp lệ mỗi lần lật. Firmware OLED hiện dùng cạnh FALLING và khóa 200 ms; đây là tham số mã nguồn, không phải chứng nhận lưu lượng đo tối đa. Khóa dài có thể bỏ nhịp, khóa ngắn có thể nhận nhiễu; kiểm tra tín hiệu và số lần lật cơ khí trước khi đổi ngưỡng."
+  },
+  {
+    "documentId": "rain-metrology",
+    "title": "Đo mưa bằng gầu lật và sai số — Độ phân giải và cường độ",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall/tree/main/firmware",
+    "sectionSources": {
+      "Mưa giả và giới hạn cơ cấu": "https://www.bom.gov.au/resources/learn-and-explore/radar-and-equipment-knowledge-centre/flood-river-and-rain-gauges"
+    },
+    "keywords": [
+      "phễu",
+      "diện tích",
+      "đường kính",
+      "thể tích",
+      "ml",
+      "cm2",
+      "gầu",
+      "cân bằng",
+      "hiệu chuẩn",
+      "sai số",
+      "nam châm",
+      "debounce",
+      "khóa",
+      "độ phân giải",
+      "mưa giả"
+    ],
+    "id": "rain-metrology-2",
+    "path": "docs/knowledge/11-rain-metrology.md",
+    "text": "Một nhịp làm tổng tăng theo k nên mưa nhỏ có thể chưa đủ lật; 0 nhịp không chứng minh không có giọt mưa. Cường độ cửa sổ 5 phút là lượng nước trong 5 phút nhân 12; một nhịp 0,64 mm đã tạo 7,68 mm/h quy đổi. Đổ thử nhanh có thể tạo số lớn mà không có mưa tự nhiên. Lô nhịp suy từ bộ đếm chỉ biết khoảng giữa hai bản tin, không biết giờ từng nhịp; không suy ngược lịch sử bằng hệ số mới."
+  },
+  {
+    "documentId": "rain-metrology",
+    "title": "Đo mưa bằng gầu lật và sai số — Mưa giả và giới hạn cơ cấu",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://www.bom.gov.au/resources/learn-and-explore/radar-and-equipment-knowledge-centre/flood-river-and-rain-gauges",
+    "sectionSources": {
+      "Mưa giả và giới hạn cơ cấu": "https://www.bom.gov.au/resources/learn-and-explore/radar-and-equipment-knowledge-centre/flood-river-and-rain-gauges"
+    },
+    "keywords": [
+      "phễu",
+      "diện tích",
+      "đường kính",
+      "thể tích",
+      "ml",
+      "cm2",
+      "gầu",
+      "cân bằng",
+      "hiệu chuẩn",
+      "sai số",
+      "nam châm",
+      "debounce",
+      "khóa",
+      "độ phân giải",
+      "mưa giả"
+    ],
+    "id": "rain-metrology-3",
+    "path": "docs/knowledge/11-rain-metrology.md",
+    "text": "Gầu có thể lật khi không có mưa do rung, nước đọng từ lần trước hoặc sương bổ sung vào lượng nước sẵn có. Nước xả thử cũng tạo tín hiệu giống nước mưa. Đặt cơ cấu cân, bảo đảm phễu sạch và quan sát thực tế giúp đối chiếu; riêng Hall không phân biệt nguồn nước. RainSense giữ nhãn thử riêng và loại phần đã đánh dấu khỏi nhận định thời tiết, đồng thời không tự coi mọi nhịp còn lại là mưa đã xác minh."
+  },
+  {
+    "documentId": "atmospheric-physics",
+    "title": "Vật lý các thông số khí tượng — RH tăng khi nhiệt độ giảm",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://www.weather.gov/arx/why_dewpoint_vs_humidity",
+    "sectionSources": {
+      "Nhiệt độ và sai lệch do mạch": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf",
+      "Khí áp trạm và mực nước biển": "https://www.noaa.gov/jetstream/atmosphere/air-pressure",
+      "Heat index và nhiệt độ cảm nhận": "https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml"
+    },
+    "keywords": [
+      "nhiệt độ",
+      "độ ẩm",
+      "rh",
+      "điểm sương",
+      "bão hòa",
+      "nóng",
+      "tự nóng",
+      "mực nước biển",
+      "độ cao",
+      "1013",
+      "hpa",
+      "pa",
+      "heat index"
+    ],
+    "id": "atmospheric-physics-0",
+    "path": "docs/knowledge/12-atmospheric-physics.md",
+    "text": "Độ ẩm tương đối RH so sánh lượng hơi nước hiện có với trạng thái bão hòa ở cùng nhiệt độ. Khi không khí lạnh đi mà lượng hơi nước gần như giữ nguyên, RH có thể tăng dù chưa có mưa hay hơi nước mới. Điểm sương phản ánh mức hơi nước và giúp so sánh cảm giác ẩm giữa các nhiệt độ. Vì vậy, “RH tăng” không tự đồng nghĩa “hơi nước tăng” hoặc “sắp mưa”; cần đọc cùng nhiệt độ, điểm sương và chuỗi thời gian."
+  },
+  {
+    "documentId": "atmospheric-physics",
+    "title": "Vật lý các thông số khí tượng — Nhiệt độ và sai lệch do mạch",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf",
+    "sectionSources": {
+      "Nhiệt độ và sai lệch do mạch": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf",
+      "Khí áp trạm và mực nước biển": "https://www.noaa.gov/jetstream/atmosphere/air-pressure",
+      "Heat index và nhiệt độ cảm nhận": "https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml"
+    },
+    "keywords": [
+      "nhiệt độ",
+      "độ ẩm",
+      "rh",
+      "điểm sương",
+      "bão hòa",
+      "nóng",
+      "tự nóng",
+      "mực nước biển",
+      "độ cao",
+      "1013",
+      "hpa",
+      "pa",
+      "heat index"
+    ],
+    "id": "atmospheric-physics-1",
+    "path": "docs/knowledge/12-atmospheric-physics.md",
+    "text": "Nhiệt độ cảm biến chịu ảnh hưởng môi trường, tự nung và nhiệt trên PCB; BME280 không tự bảo đảm bằng đúng nhiệt độ không khí ngoài trời. Che bức xạ nhưng giữ thông gió, tách khỏi phần tỏa nhiệt và đối chiếu với dụng cụ tham chiếu giúp đánh giá lệch. Dải hoạt động không đồng nghĩa sai số bằng nhau trong toàn dải. Không sửa bằng một offset tùy ý chỉ vì khác ứng dụng thời tiết ở vị trí khác."
+  },
+  {
+    "documentId": "atmospheric-physics",
+    "title": "Vật lý các thông số khí tượng — Khí áp trạm và mực nước biển",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://www.noaa.gov/jetstream/atmosphere/air-pressure",
+    "sectionSources": {
+      "Nhiệt độ và sai lệch do mạch": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf",
+      "Khí áp trạm và mực nước biển": "https://www.noaa.gov/jetstream/atmosphere/air-pressure",
+      "Heat index và nhiệt độ cảm nhận": "https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml"
+    },
+    "keywords": [
+      "nhiệt độ",
+      "độ ẩm",
+      "rh",
+      "điểm sương",
+      "bão hòa",
+      "nóng",
+      "tự nóng",
+      "mực nước biển",
+      "độ cao",
+      "1013",
+      "hpa",
+      "pa",
+      "heat index"
+    ],
+    "id": "atmospheric-physics-2",
+    "path": "docs/knowledge/12-atmospheric-physics.md",
+    "text": "1 hPa = 100 Pa; áp suất chuẩn mực nước biển là 1013,25 hPa. Giá trị chuẩn là mốc tham chiếu, không phải ranh giới chắc chắn trời đẹp/mưa. Khí áp thường giảm theo độ cao; dữ liệu BME280/BMP180 tại trạm và khí áp đã quy về biển phải được phân biệt trước khi so sánh. Chu kỳ ngày cũng góp phần làm khí áp thay đổi, đặc biệt gần xích đạo. Dùng xu hướng cùng loại số đo, đúng mốc thời gian và bối cảnh khu vực; không dự báo bão từ một lần giảm."
+  },
+  {
+    "documentId": "atmospheric-physics",
+    "title": "Vật lý các thông số khí tượng — Heat index và nhiệt độ cảm nhận",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml",
+    "sectionSources": {
+      "Nhiệt độ và sai lệch do mạch": "https://www.bosch-sensortec.com/media/boschsensortec/downloads/datasheets/bst-bme280-ds002.pdf",
+      "Khí áp trạm và mực nước biển": "https://www.noaa.gov/jetstream/atmosphere/air-pressure",
+      "Heat index và nhiệt độ cảm nhận": "https://www.wpc.ncep.noaa.gov/html/heatindex_equation.shtml"
+    },
+    "keywords": [
+      "nhiệt độ",
+      "độ ẩm",
+      "rh",
+      "điểm sương",
+      "bão hòa",
+      "nóng",
+      "tự nóng",
+      "mực nước biển",
+      "độ cao",
+      "1013",
+      "hpa",
+      "pa",
+      "heat index"
+    ],
+    "id": "atmospheric-physics-3",
+    "path": "docs/knowledge/12-atmospheric-physics.md",
+    "text": "Heat index được tính từ nhiệt độ và RH theo công thức có miền áp dụng, không phải số đo trực tiếp của một cảm biến khác. Hồi quy Rothfusz không phù hợp để dùng tùy ý ở mọi nhiệt độ/độ ẩm hoặc ngoài miền đã nghiên cứu. Khi giải thích chỉ số của RainSense, nêu đây là giá trị tính toán; không coi nó là nhiệt độ không khí đo được, và không dùng chỉ số này để dự báo mưa."
+  },
+  {
+    "documentId": "weather-reasoning",
+    "title": "Phân tích và nhận định thời tiết từ thông số — Vì sao ba thông số chưa quyết định có mưa",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://www.noaa.gov/jetstream/clouds/how-clouds-form",
+    "sectionSources": {
+      "Cách RainSense phân tích và dự báo": "https://github.com/Dwan123s/RainFall",
+      "Số liệu giả định và độ tin cậy": "https://github.com/Dwan123s/RainFall"
+    },
+    "keywords": [
+      "phân tích",
+      "nhận định",
+      "dự đoán",
+      "dự báo",
+      "thông số",
+      "xu hướng",
+      "mưa",
+      "ngưng tụ",
+      "khả năng",
+      "xác suất",
+      "bằng chứng"
+    ],
+    "id": "weather-reasoning-0",
+    "path": "docs/knowledge/13-weather-reasoning.md",
+    "text": "Không khí ẩm cần điều kiện làm lạnh/nâng lên và quá trình tạo mây, hạt giáng thủy trước khi mưa chạm đất. RH cao hoặc nhiệt độ gần điểm sương chỉ mô tả trạng thái gần bão hòa tại điểm đo; không mô tả đầy đủ các lớp khí quyển phía trên. Nhiệt độ giảm và khí áp giảm có thể cùng xuất hiện khi thời tiết thay đổi, nhưng không đủ xác định giờ mưa. Cần phối hợp chuỗi trạm với nguồn dự báo, radar hoặc quan trắc khu vực khi có."
+  },
+  {
+    "documentId": "weather-reasoning",
+    "title": "Phân tích và nhận định thời tiết từ thông số — Cách RainSense phân tích và dự báo",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall",
+    "sectionSources": {
+      "Cách RainSense phân tích và dự báo": "https://github.com/Dwan123s/RainFall",
+      "Số liệu giả định và độ tin cậy": "https://github.com/Dwan123s/RainFall"
+    },
+    "keywords": [
+      "phân tích",
+      "nhận định",
+      "dự đoán",
+      "dự báo",
+      "thông số",
+      "xu hướng",
+      "mưa",
+      "ngưng tụ",
+      "khả năng",
+      "xác suất",
+      "bằng chứng"
+    ],
+    "id": "weather-reasoning-1",
+    "path": "docs/knowledge/13-weather-reasoning.md",
+    "text": "Trước hết nêu điều đang đo và khoảng thời gian; sau đó chỉ ra đại lượng nào tăng/giảm với bằng chứng từ chuỗi đủ phủ. Ghép nhiệt độ, RH, khí áp và nhịp gầu để đưa ra nhận định có điều kiện, không tự sinh phần trăm hay thời điểm mưa. Phân tích cảm biến là nhận định định tính tại trạm, chưa phải mô hình dự báo đã hiệu chỉnh. Dự báo giờ/ngày dùng Open-Meteo theo tọa độ cấu hình, nêu nguồn và thời hạn; nhận định từ trạm vẫn hữu ích khi nguồn ngoài chưa có nhưng phải nêu đúng giới hạn."
+  },
+  {
+    "documentId": "weather-reasoning",
+    "title": "Phân tích và nhận định thời tiết từ thông số — Số liệu giả định và độ tin cậy",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "any",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall",
+    "sectionSources": {
+      "Cách RainSense phân tích và dự báo": "https://github.com/Dwan123s/RainFall",
+      "Số liệu giả định và độ tin cậy": "https://github.com/Dwan123s/RainFall"
+    },
+    "keywords": [
+      "phân tích",
+      "nhận định",
+      "dự đoán",
+      "dự báo",
+      "thông số",
+      "xu hướng",
+      "mưa",
+      "ngưng tụ",
+      "khả năng",
+      "xác suất",
+      "bằng chứng"
+    ],
+    "id": "weather-reasoning-2",
+    "path": "docs/knowledge/13-weather-reasoning.md",
+    "text": "Nếu người dùng cung cấp vài con số, chỉ phân tích như tình huống do họ nêu; không thay bản ghi backend hoặc tự gán thời điểm, địa điểm. Một bộ số đo chỉ mô tả trạng thái, cần chuỗi mới xác nhận xu hướng. Mất cảm biến nào thì nói thiếu đại lượng đó và dùng phần hợp lệ còn lại. Bản cũ, DEMO, RAM, dữ liệu thử nước và khoảng gián đoạn đều ảnh hưởng kết luận; chỉ nêu giới hạn liên quan trực tiếp đến câu hỏi, không lặp cả danh sách trong mỗi câu trả lời."
+  },
+  {
+    "documentId": "current-firmware",
+    "title": "Phần cứng trong firmware hiện hành — BMP180, DHT11 và BME280 thuộc bản nào",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "repository-1640dba",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall/blob/1640dba4689ff1f3f39d79380b48b18ac2ca573f/firmware/IOT_MQTT_TLS/IOT_MQTT_TLS.ino",
+    "keywords": [
+      "bmp180",
+      "bmp280",
+      "dht11",
+      "bme280",
+      "hiện hành",
+      "đang dùng",
+      "phiên bản",
+      "cảm biến",
+      "gpio4",
+      "sh1106"
+    ],
+    "id": "current-firmware-0",
+    "path": "docs/knowledge/14-current-firmware.md",
+    "text": "Mã IOT_MQTT_TLS hiện hành dùng BMP180 đo khí áp/nhiệt độ và DHT11 cung cấp RH; ưu tiên nhiệt độ BMP180, dự phòng bằng DHT11 nếu BMP180 mất và DHT11 còn hợp lệ. BMP180/BMP280 không đo độ ẩm; BME280 tích hợp cả nhiệt độ, RH và khí áp nhưng thuộc bản firmware khác/cũ trong repository. Không khẳng định trạm đang dùng BME280 chỉ từ giao diện hoặc tên trường payload. Mã trong Git chưa xác nhận phiên bản đã nạp và linh kiện vật lý."
+  },
+  {
+    "documentId": "current-firmware",
+    "title": "Phần cứng trong firmware hiện hành — Chân và lịch đọc trong mã OLED hiện tại",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "repository-1640dba",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall/blob/1640dba4689ff1f3f39d79380b48b18ac2ca573f/firmware/IOT_MQTT_TLS/IOT_MQTT_TLS.ino",
+    "keywords": [
+      "bmp180",
+      "bmp280",
+      "dht11",
+      "bme280",
+      "hiện hành",
+      "đang dùng",
+      "phiên bản",
+      "cảm biến",
+      "gpio4",
+      "sh1106"
+    ],
+    "id": "current-firmware-1",
+    "path": "docs/knowledge/14-current-firmware.md",
+    "text": "I2C SDA=GPIO8, SCL=GPIO9 dùng cho BMP180 và OLED SH1106; DHT11 DATA=GPIO4; Hall=GPIO10; nút BOOT=GPIO0. Cảm biến môi trường được đọc khoảng 2,5 giây/lần; lịch MQTT định kỳ 10 giây, sự kiện thay đổi gầu có khoảng gửi tối thiểu 1 giây. Khóa đếm Hall 200 ms và k=0,64 mm/lần là hằng số mã nguồn. Các mốc đọc, gửi và từng nhịp cơ khí khác nhau; không suy giờ từng nhịp từ thời điểm bản tin."
+  },
+  {
+    "documentId": "current-firmware",
+    "title": "Phần cứng trong firmware hiện hành — Cờ cảm biến và lỗi số đo",
+    "version": "1.0",
+    "hardwareVariant": "all",
+    "firmwareVersion": "repository-1640dba",
+    "verifiedAt": "2026-11-09",
+    "status": "verified",
+    "source": "https://github.com/Dwan123s/RainFall/blob/1640dba4689ff1f3f39d79380b48b18ac2ca573f/firmware/IOT_MQTT_TLS/IOT_MQTT_TLS.ino",
+    "keywords": [
+      "bmp180",
+      "bmp280",
+      "dht11",
+      "bme280",
+      "hiện hành",
+      "đang dùng",
+      "phiên bản",
+      "cảm biến",
+      "gpio4",
+      "sh1106"
+    ],
+    "id": "current-firmware-2",
+    "path": "docs/knowledge/14-current-firmware.md",
+    "text": "Firmware hiện vẫn gửi tên trường bme280_found nhưng giá trị là bmpOk hoặc dhtOk; đó là cờ tổng hợp, không chứng minh có BME280 hay cả hai cảm biến đều tốt. Trường môi trường mất đọc được gửi null theo từng cảm biến. Backend cần coi giá trị không hợp lệ là thiếu dữ liệu, không thay bằng 0 để phân tích khí tượng. DHT11 có thể mất trong khi BMP180 vẫn còn khí áp và nhiệt độ; không vì vậy loại toàn bộ bản đo."
   }
 ] as const;

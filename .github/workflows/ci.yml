@@ -37,6 +37,6 @@ jobs:
         run: npm run prisma:generate --workspace=backend
       - run: npm test
       - name: Verify approved knowledge index is committed
-        run: git diff --exit-code -- backend/src/shared/knowledge.generated.ts
+        run: git diff --exit-code -- backend/src/shared/knowledge.generated.ts frontend/shared
       - run: npm run lint
       - run: npm run build

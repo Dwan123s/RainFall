@@ -1,0 +1,10 @@
+<!-- {"documentId":"weather-reasoning","title":"Phân tích và nhận định thời tiết từ thông số","version":"1.0","hardwareVariant":"all","firmwareVersion":"any","verifiedAt":"2026-11-09","status":"verified","source":"https://www.noaa.gov/jetstream/clouds/how-clouds-form","sectionSources":{"Cách RainSense phân tích và dự báo":"https://github.com/Dwan123s/RainFall","Số liệu giả định và độ tin cậy":"https://github.com/Dwan123s/RainFall"},"keywords":["phân tích","nhận định","dự đoán","dự báo","thông số","xu hướng","mưa","ngưng tụ","khả năng","xác suất","bằng chứng"]} -->
+
+## Vì sao ba thông số chưa quyết định có mưa
+Không khí ẩm cần điều kiện làm lạnh/nâng lên và quá trình tạo mây, hạt giáng thủy trước khi mưa chạm đất. RH cao hoặc nhiệt độ gần điểm sương chỉ mô tả trạng thái gần bão hòa tại điểm đo; không mô tả đầy đủ các lớp khí quyển phía trên. Nhiệt độ giảm và khí áp giảm có thể cùng xuất hiện khi thời tiết thay đổi, nhưng không đủ xác định giờ mưa. Cần phối hợp chuỗi trạm với nguồn dự báo, radar hoặc quan trắc khu vực khi có.
+
+## Cách RainSense phân tích và dự báo
+Trước hết nêu điều đang đo và khoảng thời gian; sau đó chỉ ra đại lượng nào tăng/giảm với bằng chứng từ chuỗi đủ phủ. Ghép nhiệt độ, RH, khí áp và nhịp gầu để đưa ra nhận định có điều kiện, không tự sinh phần trăm hay thời điểm mưa. Phân tích cảm biến là nhận định định tính tại trạm, chưa phải mô hình dự báo đã hiệu chỉnh. Dự báo giờ/ngày dùng Open-Meteo theo tọa độ cấu hình, nêu nguồn và thời hạn; nhận định từ trạm vẫn hữu ích khi nguồn ngoài chưa có nhưng phải nêu đúng giới hạn.
+
+## Số liệu giả định và độ tin cậy
+Nếu người dùng cung cấp vài con số, chỉ phân tích như tình huống do họ nêu; không thay bản ghi backend hoặc tự gán thời điểm, địa điểm. Một bộ số đo chỉ mô tả trạng thái, cần chuỗi mới xác nhận xu hướng. Mất cảm biến nào thì nói thiếu đại lượng đó và dùng phần hợp lệ còn lại. Bản cũ, DEMO, RAM, dữ liệu thử nước và khoảng gián đoạn đều ảnh hưởng kết luận; chỉ nêu giới hạn liên quan trực tiếp đến câu hỏi, không lặp cả danh sách trong mỗi câu trả lời.

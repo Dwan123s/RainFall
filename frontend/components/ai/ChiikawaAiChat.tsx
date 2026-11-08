@@ -30,24 +30,21 @@ const DEFAULT_WELCOME_MESSAGE: Message = {
   id: 'msg-welcome',
   role: 'assistant',
   content:
-    'Xin chào! Mình là RainSense AI, hỗ trợ đọc dữ liệu trạm, phân tích mưa theo từng đợt hoặc từng buổi, và giải thích cảm biến, MQTT trong dự án. Mình sẽ nêu rõ khi dữ liệu thiếu hoặc chưa đủ để xác nhận tình hình hiện tại. Bạn muốn xem báo cáo thời tiết hay diễn biến mưa?',
+    'Mình là RainSense AI, hỗ trợ chuyên sâu về mạch, gầu lật và khí tượng của dự án. Mình trả lời ngắn theo câu hỏi; thêm “giải thích chi tiết” khi bạn muốn tìm hiểu sâu.',
   timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 };
 
 const SUGGESTED_PROMPTS = [
   '🌤️ Phân tích thời tiết hiện tại',
-  '🌧️ Mưa nhiều, ngưng một lúc rồi mưa lại thì tính thế nào?',
-  '🌦️ So sánh lượng mưa sáng và chiều hôm nay',
-  '🌊 Mưa lớn kéo dài có thể dẫn đến nguy cơ gì?',
-  '🧮 Hôm nay trạm ghi nhận bao nhiêu lần gầu lật?',
-  '📐 12.8 mm với hệ số 0.64 mm/tip tương đương bao nhiêu lần gầu lật?',
-  '📏 Cách gầu lật A3144 tính lượng mưa?',
-  '⚠️ Khí áp giảm có nguy cơ bão không?',
-  '📉 Xu hướng khí áp trong 3 giờ vừa qua?',
+  '🔧 Dự án hiện dùng cảm biến nào?',
+  '🧲 Gầu lật, phễu và Hall phối hợp thế nào?',
+  '💧 Vì sao nhiệt độ giảm nhưng RH tăng?',
+  '📊 Nhiệt độ, độ ẩm, áp suất và lượng mưa trong 1 tiếng',
+  '📐 Hiệu chuẩn 100 ml, diện tích 100 cm², 20 nhịp thì hệ số bao nhiêu?',
   '🌦️ Dự báo thời tiết ngày mai tại trạm',
-  '🔧 Từ nước mưa đến biểu đồ web hoạt động như thế nào?',
-  '🔌 Sơ đồ nối chân ESP32-S3 & BME280',
-  '📶 Hướng dẫn xử lý khi trạm ngoại tuyến'
+  '📶 Từ nước mưa đến biểu đồ web hoạt động như thế nào?',
+  '🔌 Điện trở kéo lên I2C có tác dụng gì?',
+  '🔍 Áp suất 1013 hPa có chắc trời đẹp không?'
 ];
 
 export function ChiikawaAiChat({ stationId = 'RS-ESP32S3-01' }: { stationId?: string }) {
