@@ -4,7 +4,7 @@ import { normalizeStationContext } from './rainsense-ai';
 export function getAiBackendBase(): string {
   if (process.env.AI_BACKEND_URL?.trim()) return process.env.AI_BACKEND_URL.trim().replace(/\/+$/, '');
   return !process.env.NEXT_PUBLIC_API_URL?.trim() && process.env.NODE_ENV === 'production'
-    ? 'https://rainsense-backend.onrender.com' : getApiBase();
+    ? 'https://rainsense-backend-dlxg.onrender.com' : getApiBase();
 }
 
 /** Fetch authoritative data server-side instead of promoting client text into station readings. */

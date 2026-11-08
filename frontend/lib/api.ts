@@ -1,7 +1,7 @@
-import type { ChatMetadata } from '../../backend/src/shared/ai-types';
+import type { ChatMetadata } from '@/shared/ai-types';
 import type { StationContext } from './rainsense-ai';
 
-const DEFAULT_REMOTE_BACKEND = 'https://rainsense-backend.onrender.com';
+const DEFAULT_REMOTE_BACKEND = 'https://rainsense-backend-dlxg.onrender.com';
 
 export function getApiBase(): string {
   const envUrl = process.env.NEXT_PUBLIC_API_URL;

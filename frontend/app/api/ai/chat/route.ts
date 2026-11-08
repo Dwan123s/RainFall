@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAiBackendBase } from '@/lib/ai-context.server';
 import { cleanChatHistory } from '@/lib/rainsense-ai';
-import { chatRequestSchema } from '../../../../../backend/src/shared/ai-request';
+import { chatRequestSchema } from '@/shared/ai-request';
 
 export const maxDuration = 60;
 

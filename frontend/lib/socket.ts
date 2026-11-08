@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 
-const DEFAULT_REMOTE_SOCKET = 'https://rainsense-backend.onrender.com';
+const DEFAULT_REMOTE_SOCKET = 'https://rainsense-backend-dlxg.onrender.com';
 
 function getSocketUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
