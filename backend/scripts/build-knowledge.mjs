@@ -4,6 +4,18 @@ import path from 'node:path';
 import { syncFrontendShared } from './sync-frontend-shared.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const policy = readFileSync(path.join(root, 'docs/ai/rainsense-system-prompt.txt'), 'utf8').replace(/\r\n/g, '\n').trim();
+if (policy.length < 1000 || !policy.includes('RainSense AI') || /GEMINI_API_KEY\s*=|WIFI_PASS\s*=|MQTT_PASSWORD\s*=|postgres(?:ql)?:\/\//i.test(policy)) throw new Error('Invalid chatbot policy');
+const policyOutput = `// Generated from docs/ai/rainsense-system-prompt.txt by scripts/build-knowledge.mjs.\nexport const RAIN_SENSE_POLICY = ${JSON.stringify(policy)};\n`;
+const policyTarget = path.join(root, 'backend/src/shared/policy.generated.ts');
+let previousPolicy = '';
+try { previousPolicy = readFileSync(policyTarget, 'utf8'); } catch { /* First build. */ }
+if (previousPolicy !== policyOutput) writeFileSync(policyTarget, policyOutput, 'utf8');
+const specTarget = path.join(root, 'docs/ai/realtime-chatbot-spec.md');
+const spec = readFileSync(specTarget, 'utf8').replace(/\r\n/g, '\n');
+if (!/```text\n[\s\S]*?\n```/.test(spec)) throw new Error('Missing system prompt in specification');
+const updatedSpec = spec.replace(/```text\n[\s\S]*?\n```/, () => '```text\n' + policy + '\n```');
+if (updatedSpec !== spec) writeFileSync(specTarget, updatedSpec, 'utf8');
 const directory = path.join(root, 'docs/knowledge');
 const chunks = [];
 for (const name of readdirSync(directory).filter((n) => /^\d{2}-[a-z0-9-]+\.md$/.test(n)).sort()) {

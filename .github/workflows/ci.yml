@@ -36,7 +36,7 @@ jobs:
       - name: Generate Prisma Client from the backend schema
         run: npm run prisma:generate --workspace=backend
       - run: npm test
-      - name: Verify approved knowledge index is committed
-        run: git diff --exit-code -- backend/src/shared/knowledge.generated.ts frontend/shared
+      - name: Verify approved knowledge and chatbot policy are committed
+        run: git diff --exit-code -- backend/src/shared/knowledge.generated.ts backend/src/shared/policy.generated.ts frontend/shared docs/ai/realtime-chatbot-spec.md
       - run: npm run lint
       - run: npm run build

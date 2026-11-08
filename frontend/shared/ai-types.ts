@@ -68,7 +68,7 @@ export interface ForecastContext {
 }
 
 export interface ChatMetadata {
-  mode: 'llm' | 'fallback' | 'calculation' | 'forecast' | 'analysis';
+  mode: 'llm' | 'fallback' | 'calculation' | 'forecast' | 'analysis' | 'knowledge';
   provider: 'gemini' | 'local' | 'open-meteo';
   model: string | null;
   generatedAt: string;

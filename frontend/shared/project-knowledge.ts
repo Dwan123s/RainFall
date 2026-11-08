@@ -7,6 +7,9 @@ export const foldText = (text: string) => text.toLowerCase().normalize('NFD').re
 const stop = new Set('la gi cua va cho thi co khong duoc nhu nao mot nhung cac voi trong toi ban hay the ve nay tai sao bao nhieu'.split(' '));
 export type KnowledgeChunk = (typeof KNOWLEDGE_CHUNKS)[number];
 const focusedTopics = [
+  { pattern: /(?:tram|he thong|du an).*hoat dong|luong hoat dong|tu.*cam bien.*(?:web|dashboard)|tu nuoc mua/, id: 'project-overview-0' },
+  { pattern: /(?:mach|phu kien|linh kien).*(?:gom|nhung|gi|vai tro)|(?:gom|nhung).*(?:mach|phu kien|linh kien)/, id: 'hardware-bom-0' },
+  { pattern: /(?:oled|man hinh).*(?:tac dung|chuc nang|de lam|dung de|hien thi)/, id: 'electrical-system-2' },
   { pattern: /bmp180|dht11|bmp280|dang dung|hien.*(?:phan cung|cam bien)|cam bien.*(?:nao|gi)|bme280.*(?:thay|con dung)/, id: 'current-firmware-0' },
   { pattern: /chan.*(?:dht|oled|hall)|dht.*gpio|lich doc|chu ky.*doc/, id: 'current-firmware-1' },
   { pattern: /bme280_found|co cam bien|mat dht|dht11.*(?:mat|loi)|bmp180.*(?:mat|loi)/, id: 'current-firmware-2' },
@@ -31,6 +34,8 @@ function electricalIntent(q: string) {
   if (power) {
     const bme = /bme280/.test(q);
     const hall = /a3144|hall/.test(q);
+    if (!bme && !hall && /bmp180/.test(q) && !/dht11/.test(q)) return 'bmp-power';
+    if (!bme && !hall && /dht11/.test(q) && !/bmp180/.test(q)) return 'dht-power';
     return bme && !hall ? 'bme-power' : hall && !bme ? 'hall-power' : 'unknown-power';
   }
   return /dau noi|noi chan|so do|\bgpio\b|\bsda\b|\bscl\b/.test(q) ? 'pinout' : null;
@@ -41,8 +46,18 @@ export function knowledgeSource(chunk: KnowledgeChunk): KnowledgeSource {
 
 export function isProjectExplanationQuery(query: string): boolean {
   const q = foldText(query);
-  return /la gi|tai sao|vi sao|giai thich|y nghia|khac nhau|co chac|co phai|nguyen ly|hoat dong|vai tro|anh huong|cach|hieu chuan|dau noi|noi chan|so do|dien ap|nguon|dien tro|mass|gnd|chu ky|lich doc|doc.*bao lau/.test(q)
-    || /bme280|bmp180|bmp280|dht11|hall|a3144|oled/.test(q) && /co do|do duoc|lam gi|dung.*gi/.test(q);
+  return /la gi|tai sao|vi sao|giai thich|y nghia|khac nhau|co chac|co phai|nguyen ly|hoat dong|vai tro|anh huong|cach|lam sao|lam the nao|bang gi|de lam gi|dung de|tac dung|chuc nang|hieu chuan|dau noi|noi chan|so do|dien ap|nguon|dien tro|mass|gnd|chu ky|lich doc|doc.*bao lau/.test(q)
+    || /bme280|bmp180|bmp280|dht11|hall|a3144|oled|mach|phu kien|linh kien/.test(q) && /co do|do duoc|lam gi|dung.*gi|gom|nhung|can gi/.test(q);
+}
+
+function measurementTopic(q: string): string | null {
+  if (!isProjectExplanationQuery(q) || !/lam sao|lam the nao|bang gi|cach.*do|do.*(?:the nao|nhu nao|bang)|do duoc|nguyen ly|hoat dong|cam bien.*do|do.*cam bien/.test(q)) return null;
+  if (/dht11/.test(q) && /hoat dong|nguyen ly/.test(q) && !/bmp|bme|nhiet do/.test(q)) return 'measurement-principles-1';
+  if (/bmp180/.test(q) && /hoat dong|nguyen ly/.test(q) && !/dht|bme|nhiet do/.test(q)) return 'measurement-principles-2';
+  if (/nhiet do/.test(q) && !/do am|\brh\b|khi ap|ap suat|diem suong|tu nong|pcb|giam|tang|lech|heat index|cam nhan/.test(q) && /do|cam bien/.test(q)) return 'measurement-principles-0';
+  if (/do am|\brh\b/.test(q) && !/nhiet do|diem suong|tang|giam|mua|dat/.test(q) && /do|cam bien/.test(q)) return 'measurement-principles-1';
+  if (/khi ap|ap suat/.test(q) && !/1013|muc nuoc bien|do cao|tang|giam|bao|chu ky/.test(q) && /do|cam bien/.test(q)) return 'measurement-principles-2';
+  return null;
 }
 
 /** Local lexical RAG: only the curated, build-time approved corpus is searchable. */
@@ -70,6 +85,9 @@ export function searchProjectDocs(query: string, variant: HardwareVariant = 'unk
     if (electrical === 'pinout' && d.id === 'wiring-cautions-0') score += 30;
     if (electrical === 'hall-power' && d.id === 'wiring-cautions-1') score += 30;
     if (electrical === 'bme-power' && d.documentId === 'bme280-power') score += 40;
+    if (electrical === 'bmp-power' && d.id === 'measurement-principles-3') score += 80;
+    if (electrical === 'dht-power' && d.id === 'measurement-principles-4') score += 80;
+    if (measurementTopic(q) === d.id) score += 80;
     for (const topic of focusedTopics) if (topic.pattern.test(q) && topic.id === d.id) score += 45;
     return { d, score };
   }).filter((p) => p.score > 0).sort((a, b) => b.score - a.score || a.d.id.localeCompare(b.d.id))
@@ -78,12 +96,13 @@ export function searchProjectDocs(query: string, variant: HardwareVariant = 'unk
 
 export function getProjectKnowledgeReply(query: string, context: StationContext): string | null {
   const q = foldText(query);
-  const technical = /esp32|bmp180|bmp280|dht11|bme280|a3144|hall|oled|mqtt|broker|firmware|gpio|sda|scl|dau noi|noi chan|so do|phu kien|linh kien|cam bien|nam cham|pheu|dien tro|i2c|tu loc|mass|gnd|mach|hieu chuan|nguyen ly|\bgau\b|khoa dem|debounce|luong hoat dong|du an hoat dong|tu nuoc mua/.test(q);
+  const technical = /esp32|bmp180|bmp280|dht11|bme280|a3144|hall|oled|mqtt|broker|firmware|gpio|sda|scl|dau noi|noi chan|so do|phu kien|linh kien|cam bien|nam cham|pheu|dien tro|i2c|tu loc|mass|gnd|mach|hieu chuan|nguyen ly|\bgau\b|khoa dem|debounce|(?:tram|he thong|du an).*hoat dong|luong hoat dong|tu nuoc mua/.test(q);
   if (/cong thuc/.test(q)) return null; // Preserve the configured factor in the existing formula reply.
-  const explanation = /la gi|tai sao|vi sao|giai thich|y nghia|khac nhau|co chac|co phai|nguyen ly|cach (?:tinh|do|hoat dong|du bao|phan tich)|do phan giai/.test(q);
+  const explanation = isProjectExplanationQuery(query) || /do phan giai/.test(q);
+  if (!explanation && /nhiet do|do am|khi ap|ap suat|luong mua|so nhip/.test(q) && /(?:\d+(?:[.,]\d+)?|mot|hai|ba|bon|nam|sau|bay|nua)\s*(?:gio|tieng|phut|ngay|h)\b|hom qua|hom nay|\btu\s*\d|\bluc\s*\d/.test(q)) return null;
   if (/hien tai|hom nay|luc nay|dang do/.test(q) && !explanation && !/dang dung|phan cung|phien ban|linh kien|mach|cam bien.*(?:gi|nao)|du an/.test(q)) return null;
   if (!technical && !explanation) return null;
-  if (/gau|mua/.test(q) && /ngung|ngun|nghi|mua lai|sang|chieu|hom nay|reset|ve 0|khong tang/.test(q) && !/nguyen ly|hoat dong/.test(q)) return null;
+  if (/gau|mua/.test(q) && /ngung|ngun|nghi|mua lai|sang|chieu|hom nay|reset|ve 0|khong tang/.test(q) && !/nguyen ly|hoat dong|lam sao|lam the nao|bang gi|cach do/.test(q)) return null;
   if (/du bao|ngay mai|chieu mai/.test(q) && !explanation) return null;
   if (/dang dung|hien.*(?:phan cung|cam bien)|cam bien.*(?:nao|gi)/.test(q) && context.profile?.environmentSensors && context.profile.environmentSensors !== 'unknown') {
     return context.profile.environmentSensors === 'bme280'
@@ -92,6 +111,8 @@ export function getProjectKnowledgeReply(query: string, context: StationContext)
   }
   let chunks = searchProjectDocs(query, context.profile?.hardwareVariant);
   const electrical = electricalIntent(q);
+  if (electrical === 'bmp-power' || electrical === 'dht-power') return KNOWLEDGE_CHUNKS.find((d) => d.id === `measurement-principles-${electrical === 'bmp-power' ? 3 : 4}`)?.text ?? null;
+  if (electrical === 'unknown-power' && /vai tro|lam gi|hoat dong|tac dung|tai sao|vi sao|la gi/.test(q) && !/\d\s*v\b|bao nhieu|cap duoc/.test(q)) return KNOWLEDGE_CHUNKS.find((d) => d.id === 'electrical-system-1')?.text ?? null;
   if (electrical === 'unknown-power' && /bme280/.test(q) && /hall|a3144/.test(q)) return 'Hai IC có yêu cầu nguồn khác nhau: BME280 dùng VDD 1,71–3,6 V, VDDIO 1,2–3,6 V; Hall A3144 Allegro dùng nguồn 4,5–24 V và OUT open-collector. Nguồn cảm biến và mức logic OUT phải kiểm tra riêng: GPIO ESP32-S3 dùng mức 3,3 V, không kéo OUT lên 5 V trực tiếp. Module có ổn áp có thể khác IC rời; cần đối chiếu đúng model.';
   if (electrical === 'bme-power') return KNOWLEDGE_CHUNKS.find((d) => d.documentId === 'bme280-power')?.text ?? null;
   if (electrical === 'unknown-power') return 'Cần xác định đúng tên IC hoặc model module và chân cấp nguồn đang hỏi. Điện áp VIN của module có bộ ổn áp có thể khác điện áp của IC; không dùng dải nguồn của Hall A3144 cho BME280, OLED hoặc ESP32-S3. Hãy đối chiếu sơ đồ của đúng module trước khi cấp điện.';
@@ -103,6 +124,11 @@ export function getProjectKnowledgeReply(query: string, context: StationContext)
     return prefix + chunks.map((d) => d.text).join('\n\n');
   }
   if (!chunks.length) return null;
+  if (measurementTopic(q) && !/bme280|bmp180|bmp280|dht11/.test(q) && context.profile?.environmentSensors === 'bme280') {
+    const topic = measurementTopic(q);
+    const value = topic === 'measurement-principles-0' ? 'nhiệt độ sang số đo °C' : topic === 'measurement-principles-1' ? 'độ ẩm không khí sang số đo %RH' : 'áp suất không khí sang số đo hPa';
+    return `Theo hồ sơ trạm, bộ cảm biến là BME280: cảm biến chuyển ${value}, ESP32-S3 đọc dữ liệu số rồi gửi MQTT lên backend/dashboard. BME280 tích hợp nhiệt độ, RH và khí áp, không đo lượng mưa; gầu lật và Hall đảm nhiệm phần đó. Đây là cấu hình hồ sơ, cần đối chiếu firmware đã nạp và mạch thực tế; không áp dụng sơ đồ BMP180 + DHT11 cho biến thể này.`;
+  }
   // Keep the local answer focused; the LLM can combine more retrieved sections when available.
   return (wantsDetailedAnswer(query) ? chunks.slice(0, 3) : chunks.slice(0, 1)).map((d) => d.text).join('\n\n');
 }

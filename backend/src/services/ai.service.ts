@@ -6,7 +6,7 @@ import { calculateDewPoint, calculateHeatIndex, getStartOfDayInTimezone } from '
 import { withReadDiagnostics } from '../db/read-diagnostics';
 import { calculateWeatherFeatures, describePressureTrend } from './ai-weather-features';
 import { forecastService, forecastReply, isForecastQuery } from './ai-forecast.service';
-import { searchProjectDocs, knowledgeSource, knowledgeDocumentCount, getProjectKnowledgeReply, isProjectExplanationQuery } from '../shared/project-knowledge';
+import { searchProjectDocs, knowledgeSource, knowledgeDocumentCount, getProjectKnowledgeReply } from '../shared/project-knowledge';
 import { resolveChatQuestion } from '../shared/chat-context';
 import type { ChatMetadata } from '../shared/ai-types';
 import { readRainLedger } from './rain-ledger';
@@ -120,7 +120,9 @@ export class AiService {
     const validHistory = cleanChatHistory(history);
     const searchQuery = resolveChatQuestion(userMessage, validHistory);
     const docs = searchProjectDocs(searchQuery, context.profile?.hardwareVariant);
-    const usesStationReadings = !isProjectExplanationQuery(searchQuery);
+    const knowledgeReply = getProjectKnowledgeReply(searchQuery, context);
+    const knowledgeExplanation = knowledgeReply !== null;
+    const usesStationReadings = !knowledgeExplanation;
     const finish = (reply: string, mode: ChatMetadata['mode'], model: string | null = null, fallbackReason?: ChatMetadata['fallbackReason'], includeDataNotices = true): ChatResult => {
       const notices: string[] = [];
       const measured = usesStationReadings && includeDataNotices && mode !== 'calculation' && mode !== 'forecast';
@@ -150,11 +152,10 @@ export class AiService {
     };
     const calibration = getCalibrationReply(searchQuery);
     if (calibration) return finish(calibration, 'calculation');
-    const scenario = getRainScenarioReply(searchQuery) ?? getSensorScenarioReply(searchQuery);
+    const scenario = knowledgeExplanation ? null : getRainScenarioReply(searchQuery) ?? getSensorScenarioReply(searchQuery);
     if (scenario) return finish(scenario, 'analysis', null, undefined, false);
-    const weatherSummary = getWeatherSummaryReply(searchQuery, context);
+    const weatherSummary = knowledgeExplanation ? null : getWeatherSummaryReply(searchQuery, context);
     if (weatherSummary) return finish(weatherSummary, 'analysis');
-    const knowledgeExplanation = isProjectExplanationQuery(searchQuery) && getProjectKnowledgeReply(searchQuery, context) !== null;
     const parsed = parseObservationRequest(searchQuery, context.timezone);
     // Explicit hypothetical arithmetic retains priority; observation reports fetch their exact interval.
     const calculation = getBucketCalculationReply(searchQuery, context);
@@ -164,7 +165,7 @@ export class AiService {
       return reportReply(parsed.request);
     }
     if (calculation) return finish(calculation, 'calculation');
-    if (isStationAnalysisQuery(searchQuery)) return finish(stationAnalysisReply(context, new Date(), searchQuery), 'analysis');
+    if (!knowledgeExplanation && isStationAnalysisQuery(searchQuery)) return finish(stationAnalysisReply(context, new Date(), searchQuery), 'analysis');
     if (!knowledgeExplanation && isForecastQuery(searchQuery)) {
       context.forecast = await forecastService.getForecast(searchQuery, context.profile!, context.timezone);
       const forecastText = forecastReply(context.forecast, context, searchQuery);
@@ -186,6 +187,7 @@ export class AiService {
       const result = await this.callGeminiApi(userMessage, validHistory, context, env.GEMINI_API_KEY, docs);
       if (result) return finish(result.reply, 'llm', result.model);
     }
+    if (knowledgeExplanation && knowledgeReply) return finish(knowledgeReply, 'knowledge', null, undefined, false);
     return finish(generateRainSenseReply(searchQuery, context), 'fallback', null, env.GEMINI_API_KEY ? 'model_unavailable' : 'missing_api_key');
   }
 

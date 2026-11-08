@@ -267,13 +267,13 @@ describe('Chat orchestration and read-only HTTP tools', () => {
     try {
       env.GEMINI_API_KEY = '';
       const local = await new AiService().chat('A3144 cấp nguồn 3,3 V được không?', [], 'AI-NOKEY');
-      assert.equal(local.metadata.mode, 'fallback');
-      assert.equal(local.metadata.fallbackReason, 'missing_api_key');
+      assert.equal(local.metadata.mode, 'knowledge');
+      assert.equal(local.metadata.fallbackReason, undefined); assert.equal(local.metadata.provider, 'local');
       assert.match(local.reply, /4,5–24 V/);
       env.GEMINI_API_KEY = 'test-only-key';
       t.mock.method(globalThis, 'fetch', async () => new Response('', { status: 429 }));
       const failed = await new AiService().chat('OLED SH1106 là gì?', [], 'AI-NOKEY');
-      assert.equal(failed.metadata.fallbackReason, 'model_unavailable');
+      assert.equal(failed.metadata.mode, 'knowledge'); assert.equal(failed.metadata.provider, 'local');
       assert.match(failed.reply, /OLED/);
       assert.doesNotMatch(failed.reply, /test-only-key/);
     } finally { env.GEMINI_API_KEY = oldKey; }

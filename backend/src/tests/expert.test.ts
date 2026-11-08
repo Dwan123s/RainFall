@@ -122,7 +122,7 @@ describe('Weather interpretation and calibration as an expert', () => {
     try {
       env.GEMINI_API_KEY = '';
       const result = await new AiService().chat('BME280 có đo lượng mưa không?', [], 'EXPERT-ROUTING');
-      assert.equal(result.metadata.mode, 'fallback'); assert.equal(result.context.forecast, undefined);
+      assert.equal(result.metadata.mode, 'knowledge'); assert.equal(result.context.forecast, undefined);
       assert.match(result.reply, /không đo lượng mưa/);
       const report = await new AiService().chat('Nhiệt độ BMP180 trong 1 tiếng', [], 'EXPERT-ROUTING');
       assert.equal(report.metadata.mode, 'analysis'); assert.ok(report.context.observationReport);
