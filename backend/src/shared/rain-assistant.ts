@@ -1,4 +1,5 @@
 import type { RainWindow, StationContext } from './rainsense-ai';
+import { stationAnalysisReply } from './station-analysis';
 
 const numberText = (n: number) => Number(n.toPrecision(12)).toString();
 const parse = (s: string) => Number(s.replace(',', '.'));
@@ -118,15 +119,6 @@ export function getBucketCalculationReply(query: string, c: StationContext): str
 export function getRainHazardReply(query: string, c: StationContext, now: Date): string | null {
   const q = query.toLowerCase().normalize('NFC');
   if (!/thiên tai|lũ|lụt|ngập|sạt lở|sạt đất|mưa.*(?:kéo dài|liên tục|sắp tới|dẫn tới|dẫn đến|hậu quả|nguy cơ)|(?:sắp tới|thời tiết).*(?:diễn biến|như thế nào)/.test(q)) return null;
-  const age = c.observedAt ? now.getTime() - Date.parse(c.observedAt) : NaN;
-  const fresh = c.isOnline && Number.isFinite(age) && age >= -60000 && age <= 300000;
-  const reports = [c.currentRainRateMmH === null ? '' : `cường độ cửa sổ 5 phút ${numberText(c.currentRainRateMmH)} mm/h`,
-    c.todayRainMm === null ? '' : `lượng mưa ghi nhận hôm nay ${numberText(c.todayRainMm)} mm`].filter(Boolean);
-  const evidence = reports.length ? `Theo bản ghi trạm ${c.stationName} (${c.deviceId})${c.observedAt ? `, đo lúc ${stationTime(c.observedAt, c)}` : ''}, ${reports.join(', ')}. ${fresh ? '' : 'Dữ liệu chưa đủ mới hoặc trạm ngoại tuyến; chưa xác nhận điều kiện hiện tại. '}`
-    : 'Chưa có báo cáo trạm để đánh giá tình hình thực tế. Theo tình huống bạn nêu hoặc kịch bản mưa kéo dài: ';
-  const hours = c.rainHistory?.hourly?.filter((w) => w.coverageComplete && Date.parse(w.to) - Date.parse(w.from) === 3600000).slice(-2) ?? [];
-  const trend = hours.length === 2 && hours[0].to === hours[1].from
-    ? `Hai giờ liền kề đã đủ bản tin ghi nhận ${numberText(hours[0].rainfallMm)} mm rồi ${numberText(hours[1].rainfallMm)} mm; lượng mưa theo giờ ${hours[1].rainfallMm > hours[0].rainfallMm ? 'tăng' : hours[1].rainfallMm < hours[0].rainfallMm ? 'giảm' : 'bằng nhau'} trong các khoảng đã đo. ` : 'Chưa có hai khoảng giờ liền kề đủ dữ liệu để xác nhận xu hướng tăng/giảm. ';
-  const zero = c.currentRainRateMmH === 0 ? 'Dù không ghi nhận nhịp mới trong 5 phút, nước thượng nguồn có thể tiếp tục về; không thể kết luận đã hết nguy cơ ngập hoặc sạt lở. ' : '';
-  return `${evidence}${reports.length ? trend : ''}\n\nNếu mưa lớn tiếp tục hoặc lặp lại, nước tích lũy có thể gây ngập cục bộ ở nơi thoát nước kém; tại lưu vực dốc, đất đã bão hòa hoặc sườn dốc yếu có thể tăng nguy cơ lũ quét, sạt lở. Chưa có dữ liệu địa hình hoặc độ ẩm đất để xác nhận các điều kiện đó tại trạm. Độ ẩm không khí không phải độ ẩm đất. ${zero}\n\nĐây là nhận định có điều kiện, không dự báo chắc chắn mưa sẽ kéo dài, giờ lũ đến hay độ sâu ngập. Cần mực nước, khả năng thoát nước, mưa thượng nguồn và bản tin địa phương để đánh giá cụ thể. Theo dõi cảnh báo chính thức; tránh đi qua nước ngập và dòng chảy xiết.`;
+  if (c.currentTemp === null && c.currentHumid === null && c.currentPress === null && c.todayRainMm === null) return 'Chưa có báo cáo trạm để đánh giá thực tế. Nếu mưa lớn tiếp tục, nơi trũng/thoát kém có thể ngập; ở lưu vực dốc hoặc gần suối có thể tăng nguy cơ lũ quét/sạt lở. Đây là kịch bản có điều kiện, không xác nhận đang xảy ra thiên tai.';
+  return stationAnalysisReply(c, now, query + ' nguy cơ ngập thiên tai');
 }

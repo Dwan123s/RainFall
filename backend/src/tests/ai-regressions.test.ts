@@ -65,7 +65,7 @@ describe('Chatbot regression audit', () => {
       const r = await new AiService().chat('nhiệt độ độ ẩm áp suất lượng mưa hiện tại bao nhiêu?', [], id);
       assert.equal(r.metadata.mode, 'analysis');
       for (const label of ['Nhiệt độ', 'Độ ẩm', 'Áp suất', 'mm']) assert.ok(r.reply.includes(label), label);
-      assert.match(r.reply, /chưa xác minh.*mưa tự nhiên/);
+      assert.match(r.reply, /chưa dùng tổng lô để suy cường độ ngắn hạn/);
       assert.doesNotMatch(r.reply, /trạm ghi nhận mưa (?:to|rất to)/);
     } finally { env.GEMINI_API_KEY = key; }
   });
@@ -94,7 +94,7 @@ describe('Chatbot regression audit', () => {
   it('portable fallback also preserves every current metric and does not assert natural rain', () => {
     const c = normalizeStationContext({ stationName: 'TEST', observedAt: now.toISOString(), isOnline: true, currentTemp: 32, currentHumid: 62, currentPress: 1011, currentRainRateMmH: 261.1, todayRainMm: 21.76 }, 'TEST');
     const text = generateRainSenseReply('Phân tích thời tiết hiện tại', c, [], now);
-    assert.match(text, /chưa xác minh.*mưa tự nhiên/);
+    assert.match(text, /chưa có mốc từng nhịp/);
     assert.doesNotMatch(text, /trạm ghi nhận mưa rất to/);
     const multi = generateRainSenseReply('nhiệt độ độ ẩm áp suất hiện tại?', c, [], now);
     assert.match(multi, /32\.0 °C/); assert.match(multi, /62\.0 %/); assert.match(multi, /1011\.0 hPa/);

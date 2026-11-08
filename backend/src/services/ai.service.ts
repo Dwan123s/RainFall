@@ -15,6 +15,7 @@ import { getCurrentObservationReply } from '../shared/current-observation';
 import { getCalibrationReply } from '../shared/rain-calibration';
 import { isStationAnalysisQuery, stationAnalysis, stationAnalysisReply, getSensorScenarioReply } from '../shared/station-analysis';
 import { answerInstruction, wantsDetailedAnswer } from '../shared/answer-style';
+import { getRainScenarioReply, isWaterTestQuery } from '../shared/rain-interpretation';
 import {
   buildRainSensePrompt, cleanChatHistory, generateRainSenseReply, getBucketCalculationReply, normalizeStationContext, normalizeStationTimezone,
   type ChatTurn, type StationContext
@@ -80,8 +81,8 @@ export class AiService {
         fresh: device?.isOnline === true && Number.isFinite(age) && age >= -60000 && age <= 300000 && temp !== null && humid !== null && press !== null,
         historyTruncated: measurements.length >= 20000 },
       recentAlerts: alerts.map((a) => a.message), rainHistory: hasData ? rainHistory : null,
-      rainWindows: hasData ? [1, 3, 24].map((hours) => summarizeRainWindow(events, measurements.map((m) => m.timestamp),
-        new Date(now.getTime() - hours * 3600000), now, `${hours} giờ trượt`, Math.max(120000, (config?.mqttInterval ?? 30) * 3000), true)) : []
+      rainWindows: hasData ? [1 / 12, 1, 3, 24].map((hours) => summarizeRainWindow(events, measurements.map((m) => m.timestamp),
+        new Date(now.getTime() - hours * 3600000), now, hours < 1 ? '5 phút trượt' : `${hours} giờ trượt`, maxGap, true)) : []
     }, deviceId);
   }
 
@@ -123,8 +124,8 @@ export class AiService {
       const notices: string[] = [];
       const measured = usesStationReadings && includeDataNotices && mode !== 'calculation' && mode !== 'forecast';
       if (measured && context.dataQuality?.demo) notices.push('Các số đo trạm đang ở chế độ giả lập.');
-      if (measured && context.dataQuality?.source !== 'postgresql' && (context.observationReport || context.rainHistory || (context.weatherFeatures?.availableSampleCount ?? context.weatherFeatures?.sampleCount ?? 0) > 0)) notices.push('Dữ liệu trạm có dùng bộ nhớ dự phòng; lịch sử có thể thiếu và không được bảo đảm lưu bền vững.');
-      return { reply: notices.length ? `${notices.join(' ')}\n\n${reply}` : reply, context,
+      if (measured && context.dataQuality?.source !== 'postgresql' && (context.observationReport || context.rainHistory || (context.weatherFeatures?.availableSampleCount ?? context.weatherFeatures?.sampleCount ?? 0) > 0)) notices.push('Lịch sử đang dùng bộ nhớ dự phòng, có thể thiếu bản ghi.');
+      return { reply: notices.length ? `${reply}\n\n${notices.join(' ')}` : reply, context,
         metadata: { mode, provider: mode === 'llm' ? 'gemini' : mode === 'forecast' ? 'open-meteo' : 'local', model,
           generatedAt: new Date().toISOString(), fallbackReason, sources: mode === 'calculation' || mode === 'analysis' ? [] : docs.map(knowledgeSource) } };
     };
@@ -136,15 +137,19 @@ export class AiService {
       if (source !== context.dataQuality!.source) context.dataQuality!.source = 'mixed';
       context.dataQuality!.historyTruncated = report.historyTruncated;
       let reply = formatObservationReport(report, context, searchQuery);
-      if (isStationAnalysisQuery(searchQuery) && request.metrics.length > 1) reply += `\n\n${stationAnalysis({ ...context, rainHistory: null,
-        currentTemp: report.weather.temperature?.lastValue ?? null, currentHumid: report.weather.humidity?.lastValue ?? null,
-        currentPress: report.weather.pressure?.lastValue ?? null, dewPoint: null,
-        observedAt: report.weather.temperature?.lastObservedAt ?? report.weather.pressure?.lastObservedAt ?? null })}`;
+      const include = (metric: 'temperature' | 'humidity' | 'pressure') => request.metrics.includes(metric);
+      if (isStationAnalysisQuery(searchQuery) && request.metrics.some((m) => m !== 'rain')) reply += `\n\n${stationAnalysis({ ...context, rainHistory: null,
+        weatherFeatures: { ...report.weather,
+          temperature: include('temperature') ? report.weather.temperature : null, humidity: include('humidity') ? report.weather.humidity : null, pressure: include('pressure') ? report.weather.pressure : null,
+          temperatureDelta1hC: include('temperature') ? report.weather.temperatureDelta1hC : null, pressureDelta3hHpa: include('pressure') ? report.weather.pressureDelta3hHpa : null },
+        currentTemp: include('temperature') ? report.weather.temperature?.lastValue ?? null : null, currentHumid: include('humidity') ? report.weather.humidity?.lastValue ?? null : null,
+        currentPress: include('pressure') ? report.weather.pressure?.lastValue ?? null : null, dewPoint: null,
+        observedAt: report.weather.temperature?.lastObservedAt ?? report.weather.humidity?.lastObservedAt ?? report.weather.pressure?.lastObservedAt ?? null }, new Date(), { includeRain: false, historical: true, testing: isWaterTestQuery(searchQuery) })}`;
       return finish(reply, 'analysis');
     };
     const calibration = getCalibrationReply(searchQuery);
     if (calibration) return finish(calibration, 'calculation');
-    const scenario = getSensorScenarioReply(searchQuery);
+    const scenario = getRainScenarioReply(searchQuery) ?? getSensorScenarioReply(searchQuery);
     if (scenario) return finish(scenario, 'analysis', null, undefined, false);
     const knowledgeExplanation = isProjectExplanationQuery(searchQuery) && getProjectKnowledgeReply(searchQuery, context) !== null;
     const parsed = parseObservationRequest(searchQuery, context.timezone);
@@ -155,12 +160,14 @@ export class AiService {
     if (!knowledgeExplanation && !suppliedArithmetic && parsed.status === 'ready') {
       return reportReply(parsed.request);
     }
-    if (calculation) return finish(suppliedArithmetic ? calculation : `${calculation}\n\nĐã loại các khoảng đánh dấu thử nước; nước thử hôm nay tách riêng ${context.testTodayMm ?? 0} mm. Nhịp ngoài thử chưa được xác minh là mưa tự nhiên.`, 'calculation');
-    if (isStationAnalysisQuery(searchQuery)) return finish(stationAnalysisReply(context), 'analysis');
+    if (calculation) return finish(calculation, 'calculation');
+    if (isStationAnalysisQuery(searchQuery)) return finish(stationAnalysisReply(context, new Date(), searchQuery), 'analysis');
     if (!knowledgeExplanation && isForecastQuery(searchQuery)) {
       context.forecast = await forecastService.getForecast(searchQuery, context.profile!, context.timezone);
-      const result = finish(forecastReply(context.forecast, context, searchQuery), 'forecast');
-      result.metadata.sources = [{ id: 'open-meteo', title: 'Open-Meteo — dự báo theo tọa độ', version: 'hourly', path: 'https://open-meteo.com/en/docs', url: 'https://open-meteo.com/en/docs' }];
+      const forecastText = forecastReply(context.forecast, context, searchQuery);
+      const result = finish(context.forecast.status === 'available' || context.forecast.status === 'unsupported_range' ? forecastText : `${stationAnalysisReply(context, new Date(), searchQuery)}\n\nChưa có dự báo bên ngoài hợp lệ cho khoảng hỏi; nhận định trên dựa vào phần trạm đã đo.`, 'forecast');
+      result.metadata.sources = context.forecast.status === 'available' ? [{ id: 'open-meteo', title: 'Open-Meteo — dự báo theo tọa độ', version: 'hourly', path: 'https://open-meteo.com/en/docs', url: 'https://open-meteo.com/en/docs' }] : [];
+      if (context.forecast.status !== 'available') result.metadata.provider = 'local';
       return result;
     }
     const current = knowledgeExplanation ? null : getCurrentObservationReply(searchQuery, context);

@@ -47,7 +47,7 @@ describe('RainSense expert knowledge and focused answers', () => {
     assert.equal(wantsDetailedAnswer('Tóm tắt ngắn dù nội dung chuyên sâu'), false);
     assert.ok(searchProjectDocs('Điện trở kéo lên I2C làm gì?').some((d) => d.source.includes('espressif.com')));
     assert.match(buildRainSensePrompt(base), /BMP180 \+ DHT11/);
-    assert.match(buildRainSensePrompt(base), /50–110 từ/);
+    assert.match(buildRainSensePrompt(base), /60–130 từ/);
   });
   it('retains one hardware subject in a pronoun follow-up without inventing readings', () => {
     const q = resolveChatQuestion('Nó có đo độ ẩm không?', [{ role: 'user', content: 'BMP180 là gì?' }]);
@@ -80,7 +80,7 @@ describe('Weather interpretation and calibration as an expert', () => {
   it('uses partial observations without manufacturing a continuous trend, and flags stale data', () => {
     const c = { ...base, observedAt: '2026-11-08T03:00:00Z', weatherFeatures: { ...base.weatherFeatures!, temperatureDelta1hC: null, pressureDelta3hHpa: null } };
     const reply = stationAnalysis(c, now);
-    assert.match(reply, /Chưa có chuỗi đủ liên tục/); assert.match(reply, /đang cũ/);
+    assert.match(reply, /gần bão hòa/); assert.match(reply, /đang cũ/);
     assert.doesNotMatch(reply, /khí áp đổi|nhiệt độ đổi/);
   });
   it('labels user-provided values as a scenario and checks units and physical bounds', () => {
@@ -112,7 +112,7 @@ describe('Weather interpretation and calibration as an expert', () => {
     try {
       env.GEMINI_API_KEY = 'test-only'; const ai = new AiService();
       await ai.chat('BMP180 khác BME280 thế nào?', [], 'STYLE'); await ai.chat('Giải thích chi tiết BMP180 khác BME280 thế nào?', [], 'STYLE');
-      assert.match(bodies[0].systemInstruction.parts[0].text, /50–110 từ/);
+      assert.match(bodies[0].systemInstruction.parts[0].text, /60–130 từ/);
       assert.ok(bodies[0].generationConfig.maxOutputTokens < bodies[1].generationConfig.maxOutputTokens);
       assert.match(bodies[0].systemInstruction.parts[0].text, /knowledge_context/);
     } finally { env.GEMINI_API_KEY = key; }

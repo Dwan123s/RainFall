@@ -83,7 +83,7 @@ describe('Exact observation intervals', () => {
     t.mock.timers.enable({ apis: ['Date'], now: now.getTime() });
     const result = await new AiService().chat('báo cáo nhiệt độ độ ẩm áp suất lượng mưa 1 tiếng', [], 'EMPTY-HOUR');
     assert.match(result.reply, /Nhiệt độ: chưa có số đo hợp lệ/);
-    assert.match(result.reply, /không xác nhận toàn khoảng không mưa/);
+    assert.match(result.reply, /không coi đoạn thiếu là không mưa/);
     assert.doesNotMatch(result.reply, /Chưa đủ chuỗi khí áp/);
   });
 });

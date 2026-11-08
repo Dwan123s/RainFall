@@ -112,11 +112,14 @@ export function getWeatherFeatureReply(query: string, context: StationContext): 
   if (!/xu huong|thay doi|tang hay giam|giam bao nhieu|tang bao nhieu|trung binh|cao nhat|thap nhat/.test(q)) return null;
   const f = context.weatherFeatures;
   if (!/khi ap|ap suat|nhiet do|do am/.test(q)) return null;
-  if (!f || f.sampleCount === 0) return 'Chưa có chuỗi quan trắc hợp lệ để tính xu hướng hoặc thống kê môi trường tại trạm.';
+  if (!f || (f.availableSampleCount ?? f.sampleCount) === 0) return 'Chưa có chuỗi quan trắc hợp lệ để tính xu hướng hoặc thống kê môi trường tại trạm.';
   const format = (iso: string) => new Date(iso).toLocaleString('vi-VN', { timeZone: context.timezone, hour12: false });
-  const intro = `Theo ${f.sampleCount} bản đo hợp lệ của trạm ${context.stationName} (${context.deviceId}), từ ${format(f.from)} đến ${format(f.to)}: `;
+  const intro = `Theo ${f.availableSampleCount ?? f.sampleCount} bản đo có dữ liệu hợp lệ của trạm ${context.stationName} (${context.deviceId}), từ ${format(f.from)} đến ${format(f.to)}: `;
   const caution = `${f.coverageComplete ? '' : 'Khoảng dữ liệu chưa được phủ liên tục; thống kê chỉ phản ánh phần đã ghi nhận. '}${context.dataQuality?.historyTruncated ? 'Kết quả truy vấn đã chạm giới hạn số bản ghi và có thể thiếu lịch sử. ' : ''}${context.dataQuality?.fresh === false ? 'Bản đo mới nhất chưa đủ mới hoặc trạm ngoại tuyến. ' : ''}`;
   if (/khi ap|ap suat/.test(q) && /xu huong|thay doi|tang|giam/.test(q)) {
+    const s = f.pressure;
+    if (f.pressureDelta3hHpa === null && s?.firstValue !== undefined && s.lastValue !== undefined && (s.sampleCount ?? 0) >= 2) return `${intro}khí áp chênh đầu–cuối ${Number((s.lastValue - s.firstValue).toFixed(2))} hPa giữa ${format(s.firstObservedAt!)} và ${format(s.lastObservedAt!)}. ${caution}Đây là chênh lệch giữa các mốc đã đo, không tự coi khoảng thiếu là liên tục.`;
+    if (f.pressureDelta3hHpa === null && s) return `${intro}khí áp đã ghi từ ${s.min} đến ${s.max} hPa, trung bình ${s.avg} hPa. ${caution}Một mốc chưa xác định được chiều tăng/giảm; vẫn đọc được trạng thái đã đo.`;
     return `${intro}${context.pressureTrend}. ${caution}Đây là xu hướng quan trắc, chưa đủ để xác nhận bão hay dự báo giờ mưa.`;
   }
   const key = /nhiet do/.test(q) ? 'temperature' : /do am/.test(q) ? 'humidity' : 'pressure';

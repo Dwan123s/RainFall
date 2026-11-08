@@ -129,7 +129,7 @@ export function getHumidityStatusVi(humidity: number): { label: string; color: s
 }
 
 /**
- * Categorize rainfall intensity according to meteorological standards (Vietnam / WMO)
+ * Dashboard intensity bands (project convention, not official Vietnam/WMO warning levels).
  * - Nhẹ (Light): < 2.5 mm/h
  * - Vừa (Moderate): 2.5 - 10 mm/h
  * - To (Heavy): 10 - 50 mm/h

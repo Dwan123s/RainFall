@@ -1,6 +1,7 @@
 import type { StationContext } from './rainsense-ai';
 import { observationMetrics } from './observation-request';
 import { hasFutureTime, normalizeTimePhrase, parseTimeDuration } from './time-request';
+import { describeRainWindow, nearestRainWindow, isWaterTestQuery } from './rain-interpretation';
 
 /** Read a measured snapshot without a model selecting just one of several requested sensors. */
 export function getCurrentObservationReply(query: string, c: StationContext, now = new Date()): string | null {
@@ -16,17 +17,20 @@ export function getCurrentObservationReply(query: string, c: StationContext, now
   const value = (number: number | null | undefined, unit: string, digits = 1) => number == null ? 'chưa có dữ liệu' : `${number.toFixed(digits)} ${unit}`;
   const age = c.observedAt ? now.getTime() - Date.parse(c.observedAt) : NaN;
   const fresh = c.isOnline && Number.isFinite(age) && age >= -60000 && age <= 300000;
-  const lines = [`Theo báo cáo từ trạm ${c.stationName} (${c.deviceId}), cập nhật lúc ${time(c.observedAt)} (${c.timezone}):`];
+  const lines: string[] = [];
   for (const metric of metrics) {
     if (metric === 'temperature') lines.push(`Nhiệt độ: ${value(c.currentTemp, '°C')}.`);
     if (metric === 'humidity') lines.push(`Độ ẩm: ${value(c.currentHumid, '%')}.`);
     if (metric === 'pressure') lines.push(`Áp suất: ${value(c.currentPress, 'hPa')}.`);
     if (metric === 'rain') {
-      lines.push(`Lượng nước qua gầu đã lưu hôm nay: ${value(c.todayRainMm, 'mm', 2)}, đã loại thử được đánh dấu. Nước thử tách riêng: ${value(c.testTodayMm, 'mm', 2)}.`);
-      lines.push(c.currentRainRateMmH === 0 ? 'Chưa ghi nhận nhịp lật mới trong cửa sổ 5 phút tính đến lúc xử lý; chưa thể khẳng định đã tạnh hoàn toàn.' : `Cường độ nước qua gầu quy đổi theo cửa sổ 5 phút tính đến lúc xử lý: ${value(c.currentRainRateMmH, 'mm/h')}.`);
-      lines.push('Gầu chưa xác minh nước là mưa tự nhiên. Nước thử không dùng làm bằng chứng thời tiết; tổng ngày chỉ phản ánh phần đã lưu, không xác nhận thời tiết trong khoảng thiếu dữ liệu.');
+      lines.push(`Lượng ghi nhận hôm nay: ${value(c.todayRainMm, 'mm', 2)}${c.totalTipsToday === null ? '' : ` (${c.totalTipsToday} nhịp)`}.`);
+      const window = nearestRainWindow(c);
+      if (window) lines.push(describeRainWindow(window, { testing: isWaterTestQuery(query), demo: c.dataQuality?.demo, timezone: c.timezone }));
+      else lines.push(c.currentRainRateMmH === 0 ? 'Chưa ghi nhận nhịp lật mới trong cửa sổ 5 phút; chưa thể khẳng định đã tạnh hoàn toàn.' : `Cường độ quy đổi 5 phút: ${value(c.currentRainRateMmH, 'mm/h')}; chưa có mốc từng nhịp để đối chiếu cường độ này.`);
+      if ((c.testTodayMm ?? 0) > 0 && !window?.testRainfallMm) lines.push(`Nước thử hôm nay tách riêng: ${value(c.testTodayMm, 'mm', 2)}.`);
     }
   }
   if (!fresh) lines.push('Đây là bản ghi gần nhất; dữ liệu đã cũ, ở tương lai bất hợp lý hoặc trạm ngoại tuyến; chưa xác nhận được thời tiết hiện tại.');
+  lines.push(`Trạm ${c.deviceId}, bản đo lúc ${time(c.observedAt)} (${c.timezone}).`);
   return lines.join('\n\n');
 }
