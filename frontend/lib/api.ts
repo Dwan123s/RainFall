@@ -1,4 +1,4 @@
-import type { ChatMetadata } from '@/shared/ai-types';
+import type { ChatMetadata } from '../../backend/src/shared/ai-types';
 import type { StationContext } from './rainsense-ai';
 
 const DEFAULT_REMOTE_BACKEND = 'https://rainsense-backend-dlxg.onrender.com';
