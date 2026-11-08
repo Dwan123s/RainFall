@@ -16,6 +16,7 @@ import { getCalibrationReply } from '../shared/rain-calibration';
 import { isStationAnalysisQuery, stationAnalysis, stationAnalysisReply, getSensorScenarioReply } from '../shared/station-analysis';
 import { answerInstruction, wantsDetailedAnswer } from '../shared/answer-style';
 import { getRainScenarioReply, isWaterTestQuery } from '../shared/rain-interpretation';
+import { getWeatherSummaryReply } from '../shared/weather-summary';
 import {
   buildRainSensePrompt, cleanChatHistory, generateRainSenseReply, getBucketCalculationReply, normalizeStationContext, normalizeStationTimezone,
   type ChatTurn, type StationContext
@@ -151,6 +152,8 @@ export class AiService {
     if (calibration) return finish(calibration, 'calculation');
     const scenario = getRainScenarioReply(searchQuery) ?? getSensorScenarioReply(searchQuery);
     if (scenario) return finish(scenario, 'analysis', null, undefined, false);
+    const weatherSummary = getWeatherSummaryReply(searchQuery, context);
+    if (weatherSummary) return finish(weatherSummary, 'analysis');
     const knowledgeExplanation = isProjectExplanationQuery(searchQuery) && getProjectKnowledgeReply(searchQuery, context) !== null;
     const parsed = parseObservationRequest(searchQuery, context.timezone);
     // Explicit hypothetical arithmetic retains priority; observation reports fetch their exact interval.

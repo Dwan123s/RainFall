@@ -156,3 +156,11 @@ NWS mô tả nguy cơ ngập phụ thuộc cường độ/thời gian mưa cùng
 - Đã có kiểm thử trong `backend/src/tests/realtime-expert.test.ts`. Đồng bộ bản dùng ở frontend bằng `npm run knowledge:build --workspace=backend`; frontend vẫn có thể build độc lập.
 
 Kiểm tra: `npm test`, `npm run lint`, `npm run build`. Thay đổi có hiệu lực trên website khi dịch vụ đang chạy lấy và triển khai commit mới; đẩy Git không tự chứng minh website đã đổi phiên bản.
+
+## Trả lời thời tiết bằng ngôn ngữ đời thường
+
+`weather-summary.ts` xử lý các câu như “Thời tiết hôm nay thế nào?”, “Hôm nay đẹp trời không?” trước nhánh báo cáo thống kê. Mở đầu bằng nhận xét ngắn (khá dễ chịu, nóng, oi ẩm, gần đây ghi nhận mưa), rồi số đo chính và cửa sổ mưa. Câu hỏi khoảng giờ, báo cáo chi tiết, dự báo tương lai và phần cứng vẫn giữ các nhánh riêng.
+
+“Khá đẹp trời” là nhận xét có điều kiện về nhiệt/ẩm hiện tại: số đo còn mới, nhiệt độ 18–30 °C, RH từ 35%, điểm sương dưới 18 °C, cửa sổ mưa có bản tin đầy đủ và không ghi nhịp ngoài thử, phần đã ghi hôm nay chưa có mưa. Đây là quy tắc diễn đạt của dự án, không phải chuẩn tiện nghi hay xác nhận trời nắng/quang. Không dùng khí áp hay tổng mưa bằng 0 riêng lẻ để kết luận đẹp trời, không suy gió/mây và không bảo đảm cả ngày không mưa.
+
+Dùng điểm sương bổ trợ mô tả cảm giác ẩm thay vì chỉ đọc RH; mốc diễn đạt trong ứng dụng là quy ước gần đúng. Tham khảo nguyên lý: [NWS — Dew Point vs Humidity](https://www.weather.gov/arx/why_dewpoint_vs_humidity). Nước thử/giả lập không dùng làm mưa thực tế; bản ghi cũ luôn được nêu như lịch sử.

@@ -104,12 +104,12 @@ describe('RainSense grounded responses', () => {
   });
   it('does not promote lastSeen heartbeat to measurement freshness', () => {
     const text = reply('Thời tiết hiện tại?', { ...live, observedAt: '2026-10-27T08:00:00Z', lastSeen: now.toISOString() });
-    assert.match(text, /bản ghi gần nhất/);
+    assert.match(text, /bản ghi gần nhất/i);
     assert.match(text, /chưa xác nhận được thời tiết hiện tại/);
   });
   it('also flags offline and implausibly future measurements', () => {
-    assert.match(reply('Thời tiết hiện tại?', { ...live, isOnline: false }), /bản ghi gần nhất/);
-    assert.match(reply('Thời tiết hiện tại?', { ...live, observedAt: '2026-10-29T08:00:00Z' }), /bản ghi gần nhất/);
+    assert.match(reply('Thời tiết hiện tại?', { ...live, isOnline: false }), /bản ghi gần nhất/i);
+    assert.match(reply('Thời tiết hiện tại?', { ...live, observedAt: '2026-10-29T08:00:00Z' }), /bản ghi gần nhất/i);
   });
   it('does not promise forecasts or storms based on humidity and pressure', () => {
     assert.match(reply('Chiều mai mưa lúc mấy giờ?'), /chưa đủ để dự báo chính xác/);

@@ -10,6 +10,7 @@ import { formatObservationReport } from '../shared/observation-report';
 import { getWeatherFeatureReply } from '../shared/project-knowledge';
 import { env } from '../config/env';
 import type { RainEventRecord } from '../shared/types/rain';
+import { getWeatherSummaryReply, isWeatherSummaryQuery } from '../shared/weather-summary';
 
 const now = new Date('2026-11-09T06:00:00Z');
 const start = new Date(now.getTime() - 3600000);
@@ -17,6 +18,58 @@ const at = (minutes: number) => new Date(now.getTime() - minutes * 60000).toISOS
 const telemetry = (length = 61) => Array.from({ length }, (_, i) => at(i));
 const event = (rainfallMm: number, overrides: Partial<RainEventRecord> = {}): RainEventRecord => ({ id: 'e', eventId: 'e', deviceId: 'TEST', timestamp: at(10), rainfallMm, tipCount: rainfallMm, calibrationFactor: 1, timingQuality: 'device_tip', createdAt: at(10), ...overrides });
 const summarize = (events: RainEventRecord[], samples = telemetry()) => summarizeRainWindow(events, samples, start, now, '1 giờ vừa qua', 120000, true);
+
+describe('Everyday weather summaries', () => {
+  const mild = normalizeStationContext({ currentTemp: 25, currentHumid: 60, isOnline: true, observedAt: now.toISOString(), todayRainMm: 0, rainWindows: [{ ...summarize([]), label: '1 giờ trượt' }] }, 'SUMMARY');
+  it('answers a pleasant-weather question with a qualified natural headline and measured values', () => {
+    const text = getWeatherSummaryReply('Hôm nay đẹp trời không?', mild, now)!;
+    assert.match(text, /^Lúc này có thể xem là khá đẹp trời xét riêng nhiệt độ và độ ẩm/);
+    assert.match(text, /25 °C, RH 60%/); assert.match(text, /chưa đo mây, nắng và gió/);
+    assert.doesNotMatch(text, /trời nắng|trời quang đãng|chắc chắn.*không mưa/);
+  });
+  it('describes heat and moisture instead of calling high pressure or low RH proof of fair skies', () => {
+    const text = getWeatherSummaryReply('Thời tiết hôm nay thế nào?', { ...mild, currentTemp: 34, currentHumid: 55, currentPress: 1015 }, now)!;
+    assert.match(text, /^Hiện tại, điều kiện khá nóng và oi ẩm/);
+    assert.doesNotMatch(text, /đẹp trời|trời nắng/);
+    const muggy = getWeatherSummaryReply('Hôm nay đẹp trời không?', { ...mild, currentTemp: 29, currentHumid: 80 }, now)!;
+    assert.match(muggy, /ấm và khá ẩm/); assert.doesNotMatch(muggy, /có thể xem là khá đẹp trời/);
+  });
+  it('distinguishes recent heavy rain, earlier daily rain and unverified backfills', () => {
+    const rain = { ...summarize([event(100)]), label: '1 giờ trượt' };
+    const wet = getWeatherSummaryReply('Thời tiết hôm nay có mưa không?', { ...mild, todayRainMm: 100, rainWindows: [rain] }, now)!;
+    assert.match(wet, /^Gần đây trạm có ghi nhận mưa/); assert.match(wet, /100 mm\/h/); assert.match(wet, /nguy cơ ngập cục bộ có thể cao/i);
+    const earlier = getWeatherSummaryReply('Hôm nay thời tiết thế nào?', { ...mild, todayRainMm: 20 }, now)!;
+    assert.match(earlier, /^Hôm nay trạm đã ghi nhận mưa/); assert.match(earlier, /chưa ghi nhận nhịp mới/);
+    assert.doesNotMatch(earlier, /đang mưa|khá đẹp trời/);
+    const batch = getWeatherSummaryReply('Thời tiết thế nào?', { ...mild, rainWindows: [{ ...rain, uncertainTimingEvents: 1 }] }, now)!;
+    assert.match(batch, /lô nhịp chưa rõ giờ/); assert.doesNotMatch(batch, /100 mm\/h|mưa rất to/);
+  });
+  it('does not label stale, missing, simulated or test water as present natural rain', () => {
+    const stale = getWeatherSummaryReply('Hôm nay đẹp trời không?', { ...mild, observedAt: at(1440) }, now)!;
+    assert.match(stale, /^Bản ghi gần nhất/); assert.match(stale, /Số đo đã cũ/); assert.doesNotMatch(stale, /có thể xem là khá đẹp trời/);
+    assert.match(getWeatherSummaryReply('Thời tiết thế nào?', normalizeStationContext({}), now)!, /chưa có số đo/);
+    const pressureOnly = getWeatherSummaryReply('Thời tiết hôm nay thế nào?', normalizeStationContext({ currentPress: 1013 }), now)!;
+    assert.match(pressureOnly, /khí áp 1\.?013 hPa/); assert.doesNotMatch(pressureOnly, /chưa có số đo|khá đẹp trời/);
+    assert.match(getWeatherSummaryReply('Hôm nay đẹp trời không?', { ...mild, dataQuality: { source: 'memory', generatedAt: now.toISOString(), fresh: true, demo: true, historyTruncated: false } }, now)!, /^Đây là số liệu giả lập/);
+    const test = getWeatherSummaryReply('Thời tiết thế nào, tôi đang xả nước thử?', { ...mild, rainWindows: [{ ...summarize([event(100)]), label: '1 giờ trượt' }] }, now)!;
+    assert.match(test, /thử nước/); assert.doesNotMatch(test, /Gần đây trạm có ghi nhận mưa|mưa rất to|ngập cục bộ/);
+  });
+  it('keeps exact reports, forecasts and hardware questions on their original routes', () => {
+    for (const q of ['nhiệt độ thời tiết hôm nay', 'Thời tiết 1 giờ vừa qua', 'Thời tiết hôm qua thế nào?', 'Thời tiết thứ hai thế nào?', 'Thời tiết hôm kia thế nào?', 'Thời tiết ngày mai thế nào?', 'Cảm biến thời tiết hoạt động thế nào?', 'Báo cáo thời tiết hôm nay', 'Phân tích thời tiết hiện tại', 'Thời tiết mưa 10 mm thì gầu lật bao nhiêu lần?']) assert.equal(isWeatherSummaryQuery(q), false, q);
+    assert.equal(isWeatherSummaryQuery('Hôm nay có mưa không?'), true);
+    assert.equal(isWeatherSummaryQuery('Trời hôm nay như nào?'), true);
+    assert.match(generateRainSenseReply('Hôm nay đẹp trời không?', mild, [], now), /^Lúc này có thể xem là khá đẹp trời/);
+  });
+  it('answers the everyday today question before the daily statistics or model routes', async (t) => {
+    t.mock.timers.enable({ apis: ['Date'], now: now.getTime() });
+    const ai = new AiService(); t.mock.method(ai, 'getLiveContext', async () => mild);
+    t.mock.method(ai, 'getObservationReport', async () => { throw Error('An everyday summary should not turn into a table'); });
+    t.mock.method(globalThis, 'fetch', async () => { throw Error('An everyday summary does not need a model'); });
+    const response = await ai.chat('Thời tiết hôm nay thế nào?', [], 'SUMMARY');
+    assert.equal(response.metadata.mode, 'analysis'); assert.match(response.reply, /^Lúc này có thể xem là khá đẹp trời/);
+    assert.equal(response.context.observationReport, undefined);
+  });
+});
 
 describe('Realtime RainSense acceptance cases', () => {
   it('interprets 100 mm in a measured hour as a conditional flood risk without confirming a flood', () => {

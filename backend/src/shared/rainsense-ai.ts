@@ -6,6 +6,7 @@ import { getCurrentObservationReply } from './current-observation';
 import { getCalibrationReply } from './rain-calibration';
 import { isStationAnalysisQuery, stationAnalysisReply, getSensorScenarioReply } from './station-analysis';
 import { getRainScenarioReply } from './rain-interpretation';
+import { getWeatherSummaryReply } from './weather-summary';
 import type { StationProfile, WeatherFeatures, ForecastContext } from './ai-types';
 import type { ObservationReport } from './observation-report';
 export { getBucketCalculationReply } from './rain-assistant';
@@ -202,6 +203,7 @@ Các lô bù sau mất mạng không tự chứng minh giờ chính xác của t
 Không đưa thông tin RAM, ORM hoặc lỗi kỹ thuật vào câu trả lời khí tượng thông thường trừ khi nó làm thay đổi độ tin cậy của kết luận đang nêu.
 
 10. PHONG CÁCH TRẢ LỜI
+Câu hỏi đời thường như “thời tiết hôm nay thế nào?”, “hôm nay đẹp trời không?”: mở đầu bằng nhận xét tự nhiên (khá dễ chịu/nóng/oi ẩm/gần đây có ghi nhận mưa), sau đó 1–2 số liệu chính. “Khá đẹp trời” chỉ là nhận xét có giới hạn theo điều kiện nhiệt/ẩm và cửa sổ mưa hiện có; không suy mây, nắng, gió từ khí áp, RH hoặc không có nhịp gầu. Phân biệt mưa trước đó trong ngày với hiện tại; không bảo đảm cả ngày không mưa từ vài phút quan trắc.
 Câu đầu trả lời đúng câu hỏi. Tiếp theo giải thích mức độ/xu hướng/nguy cơ chính, rồi một hành động nếu cần.
 Mặc định 3–5 câu, thường 60–130 từ; câu đơn giản dùng 1–3 câu. Chỉ mở rộng khi được yêu cầu chi tiết hoặc từng bước.
 Không đọc toàn bộ dashboard, không mở đầu bằng danh sách cảnh báo và không lặp lại một giới hạn ở nhiều dòng.
@@ -250,6 +252,8 @@ export function generateRainSenseReply(query: string, c: StationContext, history
   if (calibration) return calibration;
   const scenario = getRainScenarioReply(query) ?? getSensorScenarioReply(query);
   if (scenario) return scenario;
+  const weatherSummary = getWeatherSummaryReply(query, c, now);
+  if (weatherSummary) return weatherSummary;
   const calculation = getBucketCalculationReply(query, c);
   if (calculation) return calculation;
   const explanation = isProjectExplanationQuery(query) ? getProjectKnowledgeReply(query, c) : null;
