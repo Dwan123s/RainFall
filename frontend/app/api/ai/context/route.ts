@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { fetchStationContext } from '@/lib/ai-context.server';
-import { deviceIdSchema } from '../../../../../backend/src/shared/ai-request';
+import { deviceIdSchema } from '@/shared/ai-request';
 
 export const dynamic = 'force-dynamic';
 
