@@ -225,7 +225,7 @@ export default function DevicesPage() {
                 </span>
               </div>
               <div className="flex justify-between p-2.5 rounded-lg bg-slate-100 dark:bg-slate-800/40">
-                <span className="text-slate-500 dark:text-slate-400">Chu kỳ đọc cảm biến BME280:</span>
+                <span className="text-slate-500 dark:text-slate-400">Chu kỳ đọc cảm biến BMP180 + DHT11:</span>
                 <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
                   {currentDevice.configuration?.sensorInterval ?? 10} giây
                 </span>

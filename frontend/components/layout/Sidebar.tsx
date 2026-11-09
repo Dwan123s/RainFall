@@ -115,7 +115,7 @@ export function Sidebar({ className, isOpen, onClose }: SidebarProps) {
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-slate-600 dark:text-slate-400 font-mono text-[11px]">ESP32-S3 Core</span>
           <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 font-mono">
-            BME280 + A3144
+            BMP180 + DHT11 + A3144
           </span>
         </div>
         <p className="text-[11px] text-slate-500 line-clamp-1">

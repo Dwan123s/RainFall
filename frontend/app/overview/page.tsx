@@ -432,7 +432,7 @@ export default function OverviewPage() {
               <span>Biểu đồ quan trắc khí tượng theo chuỗi thời gian</span>
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Cập nhật liên tục từ cảm biến BME280 và phễu đo mưa lật A3144
+              Cập nhật liên tục từ cảm biến BMP180 + DHT11 và phễu đo mưa lật A3144
             </p>
           </div>
 
@@ -697,13 +697,13 @@ export default function OverviewPage() {
           </div>
 
           <div className="space-y-3 text-xs">
-            {/* BME280 sensor */}
+            {/* BMP180 & DHT11 sensor */}
             <div className="flex items-center justify-between p-3 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50">
               <div className="flex items-center gap-2.5">
                 <Thermometer className="w-4 h-4 text-orange-500" />
                 <div>
-                  <div className="font-semibold text-slate-800 dark:text-slate-200">Cảm biến môi trường BME280 (I2C)</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Nhiệt độ, Độ ẩm, Khí áp</div>
+                  <div className="font-semibold text-slate-800 dark:text-slate-200">Cảm biến BMP180 (I2C) & DHT11 (GPIO)</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Khí áp (BMP180) • Nhiệt độ & Độ ẩm (DHT11)</div>
                 </div>
               </div>
               <span

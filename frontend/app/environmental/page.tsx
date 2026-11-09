@@ -94,7 +94,7 @@ export default function EnvironmentalPage() {
             <span>Phân Tích Thông Số Môi Trường (Environmental Analytics)</span>
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Nhiệt độ, độ ẩm tương đối, áp suất khí quyển, điểm sương (Dew Point) và chỉ số nhiệt (Heat Index) từ cảm biến BME280
+            Nhiệt độ, độ ẩm tương đối (DHT11), áp suất khí quyển (BMP180), điểm sương (Dew Point) và chỉ số nhiệt (Heat Index)
           </p>
         </div>
 
@@ -266,7 +266,7 @@ export default function EnvironmentalPage() {
                 Chưa có dữ liệu cảm biến môi trường từ ESP32-S3
               </p>
               <p className="text-xs text-slate-500 max-w-sm">
-                Biểu đồ sẽ vẽ tức thì ngay khi cảm biến BME280 gửi bản tin telemetry đầu tiên.
+                Biểu đồ sẽ vẽ tức thì ngay khi cảm biến DHT11/BMP180 gửi bản tin telemetry đầu tiên.
               </p>
             </div>
           ) : (
@@ -301,7 +301,7 @@ export default function EnvironmentalPage() {
                 Chưa có dữ liệu áp suất khí quyển từ ESP32-S3
               </p>
               <p className="text-xs text-slate-500 max-w-sm">
-                Biểu đồ áp suất khí quyển sẽ hiển thị theo chuỗi thời gian khi nhận được dữ liệu BME280.
+                Biểu đồ áp suất khí quyển sẽ hiển thị theo chuỗi thời gian khi nhận được dữ liệu BMP180.
               </p>
             </div>
           ) : (

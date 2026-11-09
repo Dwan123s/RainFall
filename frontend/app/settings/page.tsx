@@ -88,9 +88,9 @@ export default function SettingsPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
           <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 space-y-1">
-            <span className="text-slate-500 dark:text-slate-400 block font-semibold">Cảm biến môi trường BME280:</span>
-            <span className="font-mono font-bold text-orange-600 dark:text-orange-400">I2C (SDA: GPIO 21, SCL: GPIO 22)</span>
-            <span className="text-[11px] text-slate-500 block">Nguồn cấp 3.3V, đo Nhiệt độ, Độ ẩm, Áp suất</span>
+            <span className="text-slate-500 dark:text-slate-400 block font-semibold">Cảm biến BMP180 & DHT11:</span>
+            <span className="font-mono font-bold text-orange-600 dark:text-orange-400">BMP180 I2C (21/22), DHT11 (GPIO 14)</span>
+            <span className="text-[11px] text-slate-500 block">Nhiệt độ, Độ ẩm (DHT11) & Áp suất khí quyển (BMP180)</span>
           </div>
 
           <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 space-y-1">
@@ -215,7 +215,7 @@ export default function SettingsPage() {
             <span className="font-semibold text-slate-800 dark:text-slate-200 block">Các Topic MQTT chuẩn của ESP32-S3:</span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[11px]">
               <div className="p-2 bg-white dark:bg-slate-900/60 rounded border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300">
-                <span className="text-cyan-600 dark:text-cyan-400 font-bold">weather/RS-ESP32S3-01/telemetry</span>: BME280 định kỳ
+                <span className="text-cyan-600 dark:text-cyan-400 font-bold">weather/RS-ESP32S3-01/telemetry</span>: BMP180 + DHT11 định kỳ
               </div>
               <div className="p-2 bg-white dark:bg-slate-900/60 rounded border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-300">
                 <span className="text-cyan-600 dark:text-cyan-400 font-bold">weather/RS-ESP32S3-01/rain</span>: Sự kiện lật gầu Hall A3144
@@ -244,7 +244,7 @@ export default function SettingsPage() {
           <span>Tài liệu Kỹ thuật & Mã nguồn Nạp ESP32-S3</span>
         </h2>
         <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-          Mã nguồn firmware mẫu hoàn chỉnh cho ESP32-S3, sơ đồ đấu nối chân cảm biến BME280 (I2C) và cảm biến Hall A3144 (GPIO Interrupt) được lưu trữ chi tiết trong thư mục <code className="font-mono text-cyan-600 dark:text-cyan-400 font-semibold">docs/ESP32_FIRMWARE_GUIDE.md</code> và <code className="font-mono text-cyan-600 dark:text-cyan-400 font-semibold">docs/MQTT_SPECIFICATION.md</code>.
+          Mã nguồn firmware mẫu hoàn chỉnh cho ESP32-S3, sơ đồ đấu nối chân cảm biến BMP180 (I2C), DHT11 (GPIO) và cảm biến Hall A3144 (GPIO Interrupt) được lưu trữ chi tiết trong thư mục <code className="font-mono text-cyan-600 dark:text-cyan-400 font-semibold">docs/ESP32_FIRMWARE_GUIDE.md</code> và <code className="font-mono text-cyan-600 dark:text-cyan-400 font-semibold">docs/MQTT_SPECIFICATION.md</code>.
         </p>
       </section>
     </div>

@@ -5,7 +5,7 @@ import { AppShell } from '@/components/layout/AppShell';
 
 export const metadata: Metadata = {
   title: 'RainSense — Hệ thống Quan trắc Mưa & Môi trường Thông minh',
-  description: 'Bảng điều khiển giám sát thời tiết thời gian thực kết nối phần cứng ESP32-S3, BME280 và cảm biến đo mưa Hall A3144 qua MQTT HiveMQ Cloud',
+  description: 'Bảng điều khiển giám sát thời tiết thời gian thực kết nối phần cứng ESP32-S3, BMP180, DHT11 và cảm biến đo mưa Hall A3144 qua MQTT HiveMQ Cloud',
 };
 
 export default function RootLayout({
