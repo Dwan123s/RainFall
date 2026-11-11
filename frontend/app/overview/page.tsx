@@ -172,7 +172,32 @@ export default function OverviewPage() {
     };
   }, [queryClient]);
 
-  if (isLoading) {
+  // Format chart time labels (hỗ trợ hiển thị trực quan thông số demo theo kịch bản)
+  // BẮT BUỘC gọi Hook trước mọi câu lệnh return có điều kiện để tuân thủ React Rules of Hooks
+  const liveChartData = useMemo(() => {
+    return series.map((m: any) => ({
+      time: formatTimeVi(m.timestamp),
+      fullTime: formatDateTimeVi(m.timestamp),
+      temperature: m.temperature,
+      humidity: m.humidity,
+      pressure: m.pressure,
+      dewPoint: m.dewPoint ?? calculateDewPoint(m.temperature, m.humidity)
+    }));
+  }, [series]);
+
+  const demoChartData = useMemo(() => {
+    if (!isDemoMode) return [];
+    return generateDemoChartSeries({
+      scenarioId: demoScenario,
+      timeRange,
+      currentEnv: demoEnvironment,
+      baseSeries: series
+    });
+  }, [isDemoMode, demoScenario, timeRange, demoEnvironment, series]);
+
+  const chartData = isDemoMode ? demoChartData : liveChartData;
+
+  if (isLoading && !summary) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px] space-y-4">
         <div className="w-10 h-10 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
@@ -211,29 +236,6 @@ export default function OverviewPage() {
     demoScoreJitter: isDemoMode ? demoEnvironment.scoreJitter : 0
   });
 
-  // Format chart time labels (hỗ trợ hiển thị trực quan thông số demo theo kịch bản)
-  const liveChartData = useMemo(() => {
-    return series.map((m: any) => ({
-      time: formatTimeVi(m.timestamp),
-      fullTime: formatDateTimeVi(m.timestamp),
-      temperature: m.temperature,
-      humidity: m.humidity,
-      pressure: m.pressure,
-      dewPoint: m.dewPoint ?? calculateDewPoint(m.temperature, m.humidity)
-    }));
-  }, [series]);
-
-  const demoChartData = useMemo(() => {
-    if (!isDemoMode) return [];
-    return generateDemoChartSeries({
-      scenarioId: demoScenario,
-      timeRange,
-      currentEnv: demoEnvironment,
-      baseSeries: series
-    });
-  }, [isDemoMode, demoScenario, timeRange, demoEnvironment, series]);
-
-  const chartData = isDemoMode ? demoChartData : liveChartData;
 
   const tooltipStyle = isDark
     ? { backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: '#F1F5F9' }
