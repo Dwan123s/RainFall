@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Thermometer,
@@ -22,7 +22,8 @@ import {
   Legend
 } from 'recharts';
 import { api } from '@/lib/api';
-import { useTheme } from '@/app/providers';
+import { useTheme, useDemo } from '@/app/providers';
+import { DEMO_SCENARIOS, generateDemoChartSeries } from '@/lib/demo-scenarios';
 import { formatTimeVi, formatDateTimeVi } from '@/lib/utils';
 import {
   calculateDewPoint,
@@ -32,6 +33,7 @@ import {
 
 export default function EnvironmentalPage() {
   const { resolvedTheme } = useTheme();
+  const { isDemoMode, demoScenario, setDemoScenario, demoEnvironment } = useDemo();
   const isDark = resolvedTheme === 'dark';
   const [range, setRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
 
@@ -49,6 +51,60 @@ export default function EnvironmentalPage() {
     refetchInterval: 15000
   });
 
+  // Live series mapped
+  const liveChartData = useMemo(() => {
+    return series.map((m: any) => ({
+      time: formatTimeVi(m.timestamp),
+      fullTime: formatDateTimeVi(m.timestamp),
+      temperature: m.temperature,
+      humidity: m.humidity,
+      pressure: m.pressure,
+      dewPoint: m.dewPoint ?? calculateDewPoint(m.temperature, m.humidity),
+      heatIndex: calculateHeatIndex(m.temperature, m.humidity)
+    }));
+  }, [series]);
+
+  // Demo series matching scenario
+  const demoChartData = useMemo(() => {
+    if (!isDemoMode) return [];
+    const base = generateDemoChartSeries({
+      scenarioId: demoScenario,
+      timeRange: range,
+      currentEnv: demoEnvironment,
+      baseSeries: series
+    });
+    return base.map(p => ({
+      ...p,
+      heatIndex: calculateHeatIndex(p.temperature, p.humidity)
+    }));
+  }, [isDemoMode, demoScenario, range, demoEnvironment, series]);
+
+  const chartData = isDemoMode ? demoChartData : liveChartData;
+
+  // Min / Avg / Max statistics
+  const demoStats = useMemo(() => {
+    if (!isDemoMode || demoChartData.length === 0) return null;
+    const temps = demoChartData.map(d => d.temperature);
+    const hums = demoChartData.map(d => d.humidity);
+    const press = demoChartData.map(d => d.pressure);
+
+    const calc = (arr: number[]) => ({
+      current: arr[arr.length - 1],
+      min: Math.min(...arr),
+      max: Math.max(...arr),
+      avg: Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10
+    });
+
+    return {
+      temperature: calc(temps),
+      humidity: calc(hums),
+      pressure: {
+        ...calc(press),
+        trend: demoEnvironment.pressureTrend
+      }
+    };
+  }, [isDemoMode, demoChartData, demoEnvironment]);
+
   if (statsLoading || seriesLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[500px] space-y-4">
@@ -58,24 +114,18 @@ export default function EnvironmentalPage() {
     );
   }
 
-  const chartData = series.map((m: any) => ({
-    time: formatTimeVi(m.timestamp),
-    fullTime: formatDateTimeVi(m.timestamp),
-    temperature: m.temperature,
-    humidity: m.humidity,
-    pressure: m.pressure,
-    dewPoint: m.dewPoint ?? calculateDewPoint(m.temperature, m.humidity),
-    heatIndex: calculateHeatIndex(m.temperature, m.humidity)
-  }));
+  const effectiveStats = isDemoMode ? demoStats : stats;
+  const currentTemp = isDemoMode ? demoEnvironment.temperature : (stats?.temperature?.current ?? null);
+  const currentHumid = isDemoMode ? demoEnvironment.humidity : (stats?.humidity?.current ?? null);
+  const currentPress = isDemoMode ? demoEnvironment.pressure : (stats?.pressure?.current ?? null);
 
-  const hasData = stats?.temperature?.current !== null && stats?.temperature?.current !== undefined;
-  const currentTemp = hasData ? stats.temperature.current : null;
-  const currentHumid = stats?.humidity?.current ?? null;
-  const currentPress = stats?.pressure?.current ?? null;
+  const hasData = currentTemp !== null && currentTemp !== undefined;
   const dewPoint = hasData && currentHumid !== null ? calculateDewPoint(currentTemp, currentHumid) : null;
   const heatIndex = hasData && currentHumid !== null ? calculateHeatIndex(currentTemp, currentHumid) : null;
   const humidityStatus = currentHumid !== null ? getHumidityStatusVi(currentHumid) : { label: 'Chờ dữ liệu', color: 'text-slate-400' };
-  const pressureTrend = stats?.pressure?.trend ?? { category: 'UNKNOWN', labelVi: 'Chưa đủ dữ liệu' };
+  const pressureTrend = isDemoMode
+    ? demoEnvironment.pressureTrend
+    : (stats?.pressure?.trend ?? { category: 'UNKNOWN', labelVi: 'Chưa đủ dữ liệu' });
 
   const tooltipStyle = isDark
     ? { backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: '#F1F5F9' }
@@ -86,6 +136,33 @@ export default function EnvironmentalPage() {
 
   return (
     <div className="space-y-6">
+      {/* Demo Mode Scenario Selector Banner */}
+      {isDemoMode && (
+        <section className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-pulse shrink-0" />
+            <span className="text-amber-900 dark:text-amber-200">
+              <strong>CHẾ ĐỘ DEMO:</strong> Đang mô phỏng <strong>{DEMO_SCENARIOS[demoScenario].code}: {DEMO_SCENARIOS[demoScenario].name}</strong>. Biểu đồ và thông số đồng bộ tự động mỗi 10 giây.
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+            {(Object.keys(DEMO_SCENARIOS) as Array<keyof typeof DEMO_SCENARIOS>).map((sc) => (
+              <button
+                key={sc}
+                onClick={() => setDemoScenario(sc)}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+                  demoScenario === sc
+                    ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                    : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 dark:text-amber-300'
+                }`}
+              >
+                {DEMO_SCENARIOS[sc].code}: {DEMO_SCENARIOS[sc].shortLabel}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Page Title */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -135,15 +212,15 @@ export default function EnvironmentalPage() {
           <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs">
             <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/40 text-center">
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Thấp nhất</span>
-              <span className="font-mono font-semibold text-blue-500 dark:text-blue-400">{stats?.temperature?.min !== null && stats?.temperature?.min !== undefined ? `${stats.temperature.min.toFixed(1)}°C` : '--'}</span>
+              <span className="font-mono font-semibold text-blue-500 dark:text-blue-400">{effectiveStats?.temperature?.min !== null && effectiveStats?.temperature?.min !== undefined ? `${effectiveStats.temperature.min.toFixed(1)}°C` : '--'}</span>
             </div>
             <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/40 text-center">
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Trung bình</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{stats?.temperature?.avg !== null && stats?.temperature?.avg !== undefined ? `${stats.temperature.avg.toFixed(1)}°C` : '--'}</span>
+              <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{effectiveStats?.temperature?.avg !== null && effectiveStats?.temperature?.avg !== undefined ? `${effectiveStats.temperature.avg.toFixed(1)}°C` : '--'}</span>
             </div>
             <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/40 text-center">
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Cao nhất</span>
-              <span className="font-mono font-semibold text-rose-500 dark:text-rose-400">{stats?.temperature?.max !== null && stats?.temperature?.max !== undefined ? `${stats.temperature.max.toFixed(1)}°C` : '--'}</span>
+              <span className="font-mono font-semibold text-rose-500 dark:text-rose-400">{effectiveStats?.temperature?.max !== null && effectiveStats?.temperature?.max !== undefined ? `${effectiveStats.temperature.max.toFixed(1)}°C` : '--'}</span>
             </div>
           </div>
         </div>
@@ -165,15 +242,15 @@ export default function EnvironmentalPage() {
           <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs">
             <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/40 text-center">
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Thấp nhất</span>
-              <span className="font-mono font-semibold text-amber-500 dark:text-amber-400">{stats?.humidity?.min !== null && stats?.humidity?.min !== undefined ? `${stats.humidity.min.toFixed(1)}%` : '--'}</span>
+              <span className="font-mono font-semibold text-amber-500 dark:text-amber-400">{effectiveStats?.humidity?.min !== null && effectiveStats?.humidity?.min !== undefined ? `${effectiveStats.humidity.min.toFixed(1)}%` : '--'}</span>
             </div>
             <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/40 text-center">
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Trung bình</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{stats?.humidity?.avg !== null && stats?.humidity?.avg !== undefined ? `${stats.humidity.avg.toFixed(1)}%` : '--'}</span>
+              <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{effectiveStats?.humidity?.avg !== null && effectiveStats?.humidity?.avg !== undefined ? `${effectiveStats.humidity.avg.toFixed(1)}%` : '--'}</span>
             </div>
             <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/40 text-center">
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Cao nhất</span>
-              <span className="font-mono font-semibold text-blue-500 dark:text-blue-400">{stats?.humidity?.max !== null && stats?.humidity?.max !== undefined ? `${stats.humidity.max.toFixed(1)}%` : '--'}</span>
+              <span className="font-mono font-semibold text-blue-500 dark:text-blue-400">{effectiveStats?.humidity?.max !== null && effectiveStats?.humidity?.max !== undefined ? `${effectiveStats.humidity.max.toFixed(1)}%` : '--'}</span>
             </div>
           </div>
         </div>
@@ -195,15 +272,15 @@ export default function EnvironmentalPage() {
           <div className="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 dark:border-slate-800/80 text-xs">
             <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/40 text-center">
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Thấp nhất</span>
-              <span className="font-mono font-semibold text-purple-500 dark:text-purple-300">{stats?.pressure?.min !== null && stats?.pressure?.min !== undefined ? stats.pressure.min.toFixed(1) : '--'}</span>
+              <span className="font-mono font-semibold text-purple-500 dark:text-purple-300">{effectiveStats?.pressure?.min !== null && effectiveStats?.pressure?.min !== undefined ? Number(effectiveStats.pressure.min).toFixed(1) : '--'}</span>
             </div>
             <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/40 text-center">
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Trung bình</span>
-              <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{stats?.pressure?.avg !== null && stats?.pressure?.avg !== undefined ? stats.pressure.avg.toFixed(1) : '--'}</span>
+              <span className="font-mono font-semibold text-slate-800 dark:text-slate-200">{effectiveStats?.pressure?.avg !== null && effectiveStats?.pressure?.avg !== undefined ? Number(effectiveStats.pressure.avg).toFixed(1) : '--'}</span>
             </div>
             <div className="p-2 rounded bg-slate-100 dark:bg-slate-800/40 text-center">
               <span className="text-slate-500 dark:text-slate-400 block text-[10px]">Cao nhất</span>
-              <span className="font-mono font-semibold text-purple-500 dark:text-purple-300">{stats?.pressure?.max !== null && stats?.pressure?.max !== undefined ? stats.pressure.max.toFixed(1) : '--'}</span>
+              <span className="font-mono font-semibold text-purple-500 dark:text-purple-300">{effectiveStats?.pressure?.max !== null && effectiveStats?.pressure?.max !== undefined ? Number(effectiveStats.pressure.max).toFixed(1) : '--'}</span>
             </div>
           </div>
         </div>

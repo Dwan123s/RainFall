@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Thermometer,
@@ -34,7 +34,7 @@ import {
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { useTheme, useDemo } from '@/app/providers';
-import { DEMO_SCENARIOS } from '@/lib/demo-scenarios';
+import { DEMO_SCENARIOS, generateDemoChartSeries } from '@/lib/demo-scenarios';
 import { formatDateTimeVi, formatTimeVi } from '@/lib/utils';
 import {
   classifyPressureTrend,
@@ -211,15 +211,29 @@ export default function OverviewPage() {
     demoScoreJitter: isDemoMode ? demoEnvironment.scoreJitter : 0
   });
 
-  // Format chart time labels
-  const chartData = series.map((m: any) => ({
-    time: formatTimeVi(m.timestamp),
-    fullTime: formatDateTimeVi(m.timestamp),
-    temperature: m.temperature,
-    humidity: m.humidity,
-    pressure: m.pressure,
-    dewPoint: m.dewPoint
-  }));
+  // Format chart time labels (hỗ trợ hiển thị trực quan thông số demo theo kịch bản)
+  const liveChartData = useMemo(() => {
+    return series.map((m: any) => ({
+      time: formatTimeVi(m.timestamp),
+      fullTime: formatDateTimeVi(m.timestamp),
+      temperature: m.temperature,
+      humidity: m.humidity,
+      pressure: m.pressure,
+      dewPoint: m.dewPoint ?? calculateDewPoint(m.temperature, m.humidity)
+    }));
+  }, [series]);
+
+  const demoChartData = useMemo(() => {
+    if (!isDemoMode) return [];
+    return generateDemoChartSeries({
+      scenarioId: demoScenario,
+      timeRange,
+      currentEnv: demoEnvironment,
+      baseSeries: series
+    });
+  }, [isDemoMode, demoScenario, timeRange, demoEnvironment, series]);
+
+  const chartData = isDemoMode ? demoChartData : liveChartData;
 
   const tooltipStyle = isDark
     ? { backgroundColor: '#0F172A', borderColor: '#334155', borderRadius: '12px', color: '#F1F5F9' }
