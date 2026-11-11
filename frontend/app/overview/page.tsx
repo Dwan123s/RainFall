@@ -33,7 +33,8 @@ import {
 } from 'recharts';
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
-import { useTheme } from '@/app/providers';
+import { useTheme, useDemo } from '@/app/providers';
+import { DEMO_SCENARIOS } from '@/lib/demo-scenarios';
 import { formatDateTimeVi, formatTimeVi } from '@/lib/utils';
 import {
   classifyPressureTrend,
@@ -44,6 +45,7 @@ import {
 export default function OverviewPage() {
   const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
+  const { isDemoMode, demoScenario, setDemoScenario } = useDemo();
   const isDark = resolvedTheme === 'dark';
 
   const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d' | '30d'>('24h');
@@ -317,6 +319,32 @@ export default function OverviewPage() {
       {/* ============================================================== */}
       {/* SECTION B: 4 KEY ENVIRONMENTAL METRIC CARDS                    */}
       {/* ============================================================== */}
+      {isDemoMode && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-pulse shrink-0" />
+            <span className="text-amber-900 dark:text-amber-200">
+              <strong>CHẾ ĐỘ DEMO:</strong> Đang mô phỏng <strong>{DEMO_SCENARIOS[demoScenario].code}: {DEMO_SCENARIOS[demoScenario].name}</strong>. Các thông số tự động dao động nhẹ theo chu kỳ.
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+            {(['low', 'moderate', 'high', 'critical'] as const).map((sc) => (
+              <button
+                key={sc}
+                onClick={() => setDemoScenario(sc)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  demoScenario === sc
+                    ? 'bg-amber-500 text-white font-bold shadow-xs'
+                    : 'bg-white dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                {sc === 'low' ? 'Demo 1: Thấp' : sc === 'moderate' ? 'Demo 2: T.Bình' : sc === 'high' ? 'Demo 3: Cao' : 'Demo 4: Rất cao'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* Card 1: Nhiệt độ */}
         <div className="bg-card border border-border rounded-2xl p-5 shadow-sm hover:border-orange-500/40 transition-all group">

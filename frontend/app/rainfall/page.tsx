@@ -26,7 +26,8 @@ import {
   CartesianGrid
 } from 'recharts';
 import { api } from '@/lib/api';
-import { useTheme } from '@/app/providers';
+import { useTheme, useDemo } from '@/app/providers';
+import { DEMO_SCENARIOS } from '@/lib/demo-scenarios';
 import { formatDateTimeVi, formatTimeVi } from '@/lib/utils';
 import { RainDataAudit } from '@/components/RainDataAudit';
 import { calculateFloodRisk, classifyPressureTrend } from '@/lib/weather-calc';
@@ -34,6 +35,7 @@ import { calculateFloodRisk, classifyPressureTrend } from '@/lib/weather-calc';
 export default function RainfallPage() {
   const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
+  const { isDemoMode, demoScenario, setDemoScenario } = useDemo();
   const isDark = resolvedTheme === 'dark';
   const [chartMode, setChartMode] = useState<'hourly' | 'daily'>('hourly');
   const [isResettingRain, setIsResettingRain] = useState(false);
@@ -150,6 +152,32 @@ export default function RainfallPage() {
           </button>
         </div>
       </div>
+
+      {isDemoMode && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs">
+          <div className="flex items-center gap-2">
+            <Activity className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-pulse shrink-0" />
+            <span className="text-amber-900 dark:text-amber-200">
+              <strong>CHẾ ĐỘ DEMO:</strong> Đang mô phỏng <strong>{DEMO_SCENARIOS[demoScenario].code}: {DEMO_SCENARIOS[demoScenario].name}</strong>. Các thông số tự động dao động nhẹ theo chu kỳ.
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+            {(['low', 'moderate', 'high', 'critical'] as const).map((sc) => (
+              <button
+                key={sc}
+                onClick={() => setDemoScenario(sc)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  demoScenario === sc
+                    ? 'bg-amber-500 text-white font-bold shadow-xs'
+                    : 'bg-white dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                {sc === 'low' ? 'Demo 1: Thấp' : sc === 'moderate' ? 'Demo 2: T.Bình' : sc === 'high' ? 'Demo 3: Cao' : 'Demo 4: Rất cao'}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <p className="text-sm text-muted-foreground">Tổng đã loại thử nước: {stats?.todayMm?.toFixed(2) ?? '0.00'} mm. Nước thử hôm nay: {stats?.testTodayMm?.toFixed(2) ?? '0.00'} mm ({stats?.testTipsToday ?? 0} nhịp). Tổng ghi nhận gồm thử: {stats?.recordedTodayMm?.toFixed(2) ?? '0.00'} mm. Phần còn lại chưa xác minh là mưa tự nhiên.</p>
       {/* A. THỐNG KÊ LƯỢNG MƯA TÍCH LŨY */}
@@ -289,9 +317,7 @@ export default function RainfallPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
-                MỤC 2
-              </span>
+              
               <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Waves className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
                 <span>AI Flood Risk Analysis</span>

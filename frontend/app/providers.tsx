@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { DemoProvider, useDemo } from '@/context/demo-context';
+export { useDemo };
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 
@@ -96,7 +98,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, toggleTheme }}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <DemoProvider>{children}</DemoProvider>
+      </QueryClientProvider>
     </ThemeContext.Provider>
   );
 }
