@@ -39,13 +39,14 @@ import { formatDateTimeVi, formatTimeVi } from '@/lib/utils';
 import {
   classifyPressureTrend,
   getHumidityStatusVi,
+  calculateDewPoint,
   calculateFloodRisk
 } from '@/lib/weather-calc';
 
 export default function OverviewPage() {
   const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
-  const { isDemoMode, demoScenario, setDemoScenario } = useDemo();
+  const { isDemoMode, demoScenario, setDemoScenario, demoEnvironment } = useDemo();
   const isDark = resolvedTheme === 'dark';
 
   const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d' | '30d'>('24h');
@@ -185,16 +186,29 @@ export default function OverviewPage() {
   const rainfall = summary?.rainfall;
   const health = summary?.systemHealth;
 
-  const humidityStatus = getHumidityStatusVi(latest?.humidity ?? 50);
-  const pressureTrend = classifyPressureTrend(latest?.pressure ?? 1013);
+  const effectiveTemp = isDemoMode ? demoEnvironment.temperature : latest?.temperature;
+  const effectiveHumid = isDemoMode ? demoEnvironment.humidity : latest?.humidity;
+  const effectivePressure = isDemoMode ? demoEnvironment.pressure : latest?.pressure;
+  const effectiveDewPoint = isDemoMode
+    ? calculateDewPoint(effectiveTemp ?? 25, effectiveHumid ?? 60)
+    : (latest?.dewPoint ?? calculateDewPoint(latest?.temperature ?? 25, latest?.humidity ?? 60));
+  const effectivePressureTrend = isDemoMode
+    ? demoEnvironment.pressureTrend
+    : classifyPressureTrend(latest?.pressure ?? 1013);
 
+  const humidityStatus = getHumidityStatusVi(effectiveHumid ?? 50);
+  const pressureTrend = effectivePressureTrend;
+
+  // LƯỢNG MƯA LUÔN LẤY TỪ GÀU LẬT THỰC TẾ
   const floodRisk = calculateFloodRisk({
     rainRate: rainfall?.currentRateMmH ?? latest?.rainRate ?? 0,
-    todayMm: rainfall?.todayMm,
-    rolling24hMm: rainfall?.rolling24hMm,
-    humidity: latest?.humidity,
-    pressure: latest?.pressure,
-    pressureTrendCategory: pressureTrend?.category
+    todayMm: rainfall?.todayMm ?? 0,
+    rolling24hMm: rainfall?.rolling24hMm ?? rainfall?.todayMm ?? 0,
+    humidity: effectiveHumid,
+    pressure: effectivePressure,
+    pressureTrendCategory: pressureTrend?.category,
+    demoScenarioId: isDemoMode ? demoScenario : undefined,
+    demoScoreJitter: isDemoMode ? demoEnvironment.scoreJitter : 0
   });
 
   // Format chart time labels
@@ -324,7 +338,7 @@ export default function OverviewPage() {
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-pulse shrink-0" />
             <span className="text-amber-900 dark:text-amber-200">
-              <strong>CHẾ ĐỘ DEMO:</strong> Đang mô phỏng <strong>{DEMO_SCENARIOS[demoScenario].code}: {DEMO_SCENARIOS[demoScenario].name}</strong>. Các thông số tự động dao động nhẹ theo chu kỳ.
+              <strong>CHẾ ĐỘ DEMO:</strong> Đang mô phỏng <strong>{DEMO_SCENARIOS[demoScenario].code}: {DEMO_SCENARIOS[demoScenario].name}</strong>. Thông số tự động dao động nhẹ mỗi 10 giây (giống Live mode). Lượng mưa luôn đo từ gàu lật thực tế.
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
@@ -358,14 +372,14 @@ export default function OverviewPage() {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl md:text-4xl font-extrabold tracking-tight font-mono text-slate-900 dark:text-slate-100">
-              {latest?.temperature !== undefined ? latest.temperature.toFixed(1) : '--'}
+              {effectiveTemp !== undefined ? effectiveTemp.toFixed(1) : '--'}
             </span>
             <span className="text-lg font-bold text-orange-500">°C</span>
           </div>
           <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span>Điểm sương (Dew):</span>
             <span className="font-mono text-emerald-600 dark:text-emerald-400 font-medium">
-              {latest?.dewPoint !== undefined ? `${latest.dewPoint.toFixed(1)} °C` : '--'}
+              {effectiveDewPoint !== undefined ? `${effectiveDewPoint.toFixed(1)} °C` : '--'}
             </span>
           </div>
         </div>
@@ -382,7 +396,7 @@ export default function OverviewPage() {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl md:text-4xl font-extrabold tracking-tight font-mono text-slate-900 dark:text-slate-100">
-              {latest?.humidity !== undefined ? latest.humidity.toFixed(1) : '--'}
+              {effectiveHumid !== undefined ? effectiveHumid.toFixed(1) : '--'}
             </span>
             <span className="text-lg font-bold text-blue-500">%</span>
           </div>
@@ -404,7 +418,7 @@ export default function OverviewPage() {
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-3xl md:text-4xl font-extrabold tracking-tight font-mono text-slate-900 dark:text-slate-100">
-              {latest?.pressure !== undefined ? latest.pressure.toFixed(1) : '--'}
+              {effectivePressure !== undefined ? effectivePressure.toFixed(1) : '--'}
             </span>
             <span className="text-lg font-bold text-purple-500">hPa</span>
           </div>

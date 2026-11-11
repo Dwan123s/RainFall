@@ -35,7 +35,7 @@ import { calculateFloodRisk, classifyPressureTrend } from '@/lib/weather-calc';
 export default function RainfallPage() {
   const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
-  const { isDemoMode, demoScenario, setDemoScenario } = useDemo();
+  const { isDemoMode, demoScenario, setDemoScenario, demoEnvironment } = useDemo();
   const isDark = resolvedTheme === 'dark';
   const [chartMode, setChartMode] = useState<'hourly' | 'daily'>('hourly');
   const [isResettingRain, setIsResettingRain] = useState(false);
@@ -90,15 +90,23 @@ export default function RainfallPage() {
   });
 
   const latest = summary?.latestMeasurement;
-  const pressureTrend = classifyPressureTrend(latest?.pressure ?? 1013);
 
+  const effectiveHumid = isDemoMode ? demoEnvironment.humidity : (latest?.humidity ?? 70);
+  const effectivePressure = isDemoMode ? demoEnvironment.pressure : (latest?.pressure ?? 1013);
+  const effectivePressureTrend = isDemoMode
+    ? demoEnvironment.pressureTrend
+    : classifyPressureTrend(latest?.pressure ?? 1013);
+
+  // LƯỢNG MƯA LUÔN LẤY TỪ GÀU LẬT THỰC TẾ
   const floodRisk = calculateFloodRisk({
     rainRate: stats?.currentRateMmH ?? latest?.rainRate ?? 0,
     todayMm: stats?.todayMm ?? 0,
     rolling24hMm: stats?.rolling24hMm ?? stats?.todayMm ?? 0,
-    humidity: latest?.humidity ?? 70,
-    pressure: latest?.pressure ?? 1013,
-    pressureTrendCategory: pressureTrend?.category
+    humidity: effectiveHumid,
+    pressure: effectivePressure,
+    pressureTrendCategory: effectivePressureTrend?.category,
+    demoScenarioId: isDemoMode ? demoScenario : undefined,
+    demoScoreJitter: isDemoMode ? demoEnvironment.scoreJitter : 0
   });
 
   if (isLoading) {
@@ -158,7 +166,7 @@ export default function RainfallPage() {
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-amber-600 dark:text-amber-400 animate-pulse shrink-0" />
             <span className="text-amber-900 dark:text-amber-200">
-              <strong>CHẾ ĐỘ DEMO:</strong> Đang mô phỏng <strong>{DEMO_SCENARIOS[demoScenario].code}: {DEMO_SCENARIOS[demoScenario].name}</strong>. Các thông số tự động dao động nhẹ theo chu kỳ.
+              <strong>CHẾ ĐỘ DEMO:</strong> Đang mô phỏng <strong>{DEMO_SCENARIOS[demoScenario].code}: {DEMO_SCENARIOS[demoScenario].name}</strong>. Thông số tự động dao động nhẹ mỗi 10 giây (giống Live mode). Lượng mưa luôn đo từ gàu lật thực tế.
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
@@ -317,7 +325,6 @@ export default function RainfallPage() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              
               <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Waves className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
                 <span>AI Flood Risk Analysis</span>

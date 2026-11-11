@@ -187,6 +187,8 @@ export function calculateFloodRisk(params: {
   humidity?: number | null;
   pressure?: number | null;
   pressureTrendCategory?: string | null;
+  demoScenarioId?: 'low' | 'moderate' | 'high' | 'critical';
+  demoScoreJitter?: number;
 }): FloodRiskAssessment {
   const rainRate = params.rainRate ?? 0;
   const todayMm = params.todayMm ?? 0;
@@ -194,31 +196,47 @@ export function calculateFloodRisk(params: {
   const humidity = params.humidity ?? 60;
   const pressure = params.pressure ?? 1013;
   const pressureTrend = params.pressureTrendCategory ?? 'STABLE';
+  const jitter = params.demoScoreJitter ?? 0;
 
   let score = 0;
 
-  // 1. Cường độ mưa (max 45 điểm)
-  if (rainRate > 50) score += 45;
-  else if (rainRate > 25) score += 35;
-  else if (rainRate > 10) score += 25;
-  else if (rainRate > 2.5) score += 12;
-  else if (rainRate > 0) score += 5;
+  if (params.demoScenarioId) {
+    // In Demo Mode: Baseline environmental threat is set according to scenario,
+    // and ANY REAL RAINFALL FROM GÀU LẬT adds further risk!
+    if (params.demoScenarioId === 'critical') {
+      score = Math.max(78, Math.min(95, 88 + jitter));
+    } else if (params.demoScenarioId === 'high') {
+      score = Math.max(55, Math.min(74, 65 + jitter));
+    } else if (params.demoScenarioId === 'moderate') {
+      score = Math.max(30, Math.min(48, 38 + jitter));
+    } else {
+      score = Math.max(5, Math.min(18, 8 + jitter));
+    }
 
-  // 2. Lượng mưa tích lũy 24h / hôm nay (max 35 điểm)
-  if (rolling24hMm > 100) score += 35;
-  else if (rolling24hMm > 60) score += 28;
-  else if (rolling24hMm > 30) score += 18;
-  else if (rolling24hMm > 10) score += 8;
-  else if (rolling24hMm > 2) score += 3;
+    // Real rain impact (nếu gàu lật thực tế ghi nhận mưa/thử nước)
+    if (rainRate > 0) score = Math.min(100, score + Math.min(20, Math.round(rainRate * 0.8)));
+    if (rolling24hMm > 10) score = Math.min(100, score + Math.min(15, Math.round(rolling24hMm * 0.25)));
+  } else {
+    // Live Mode: pure sensor calculation
+    if (rainRate > 50) score += 45;
+    else if (rainRate > 25) score += 35;
+    else if (rainRate > 10) score += 25;
+    else if (rainRate > 2.5) score += 12;
+    else if (rainRate > 0) score += 5;
 
-  // 3. Độ ẩm không khí (max 10 điểm - đất bão hòa / bốc hơi chậm)
-  if (humidity > 85) score += 10;
-  else if (humidity > 75) score += 6;
-  else if (humidity > 65) score += 3;
+    if (rolling24hMm > 100) score += 35;
+    else if (rolling24hMm > 60) score += 28;
+    else if (rolling24hMm > 30) score += 18;
+    else if (rolling24hMm > 10) score += 8;
+    else if (rolling24hMm > 2) score += 3;
 
-  // 4. Áp suất khí quyển giảm nhanh / giông bão (max 10 điểm)
-  if (pressureTrend === 'RAPIDLY_FALLING' || pressure < 1000) score += 10;
-  else if (pressureTrend === 'FALLING' || pressure < 1005) score += 6;
+    if (humidity > 85) score += 10;
+    else if (humidity > 75) score += 6;
+    else if (humidity > 65) score += 3;
+
+    if (pressureTrend === 'RAPIDLY_FALLING' || pressure < 1000) score += 10;
+    else if (pressureTrend === 'FALLING' || pressure < 1005) score += 6;
+  }
 
   score = Math.min(Math.max(score, 0), 100);
 
@@ -227,7 +245,15 @@ export function calculateFloodRisk(params: {
   let trendVi = 'Ổn định';
   let trendIcon: 'stable' | 'rising' | 'falling' = 'stable';
 
-  if (rainRate >= 5 || pressureTrend === 'RAPIDLY_FALLING' || (rainRate > 0 && rolling24hMm > 20)) {
+  if (params.demoScenarioId === 'critical' || params.demoScenarioId === 'high') {
+    trend = 'RISING';
+    trendVi = 'Đang có xu hướng tăng';
+    trendIcon = 'rising';
+  } else if (params.demoScenarioId === 'moderate') {
+    trend = rainRate > 0 ? 'RISING' : 'STABLE';
+    trendVi = rainRate > 0 ? 'Đang có xu hướng tăng' : 'Cần lưu ý điểm trũng';
+    trendIcon = rainRate > 0 ? 'rising' : 'stable';
+  } else if (rainRate >= 5 || pressureTrend === 'RAPIDLY_FALLING' || (rainRate > 0 && rolling24hMm > 20)) {
     trend = 'RISING';
     trendVi = 'Đang có xu hướng tăng';
     trendIcon = 'rising';
@@ -278,15 +304,15 @@ export function calculateFloodRisk(params: {
 
   const factors: FloodRiskFactor[] = [
     {
-      name: 'Cường độ mưa tức thời (5 phút)',
+      name: 'Cường độ mưa gàu lật (5 phút)',
       value: `${rainRate.toFixed(1)} mm/h`,
       status: rainRate >= 25 ? 'ALERT' : rainRate >= 10 ? 'WARNING' : rainRate >= 2.5 ? 'MONITOR' : 'SAFE',
-      statusVi: rainRate >= 25 ? 'Rất to' : rainRate >= 10 ? 'Mưa to' : rainRate >= 2.5 ? 'Mưa vừa' : 'Không mưa / Nhỏ',
+      statusVi: rainRate >= 25 ? 'Rất to' : rainRate >= 10 ? 'Mưa to' : rainRate >= 2.5 ? 'Mưa vừa' : (rainRate > 0 ? 'Mưa nhỏ' : 'Không mưa'),
       impact: rainRate >= 25 ? 'Lưu lượng nước dồn dập vượt khả năng thấm' : rainRate >= 10 ? 'Tạo dòng chảy tràn mặt đất' : 'Hệ thống rãnh gom tự nhiên đáp ứng tốt',
       color: rainRate >= 25 ? 'text-rose-500' : rainRate >= 10 ? 'text-orange-500' : rainRate >= 2.5 ? 'text-amber-500' : 'text-emerald-500'
     },
     {
-      name: 'Lượng mưa tích lũy 24 giờ',
+      name: 'Lượng mưa tích lũy gàu lật (24h)',
       value: `${rolling24hMm.toFixed(2)} mm`,
       status: rolling24hMm >= 60 ? 'ALERT' : rolling24hMm >= 30 ? 'WARNING' : rolling24hMm >= 10 ? 'MONITOR' : 'SAFE',
       statusVi: rolling24hMm >= 60 ? 'Rất lớn' : rolling24hMm >= 30 ? 'Đáng kể' : rolling24hMm >= 10 ? 'Vừa phải' : 'Thấp',
@@ -315,14 +341,14 @@ export function calculateFloodRisk(params: {
   let actionRecommendation = '';
 
   if (level === 'CRITICAL') {
-    aiExplanation = `Mô hình AI ghi nhận tổng lượng mưa ${rolling24hMm.toFixed(1)} mm kết hợp cường độ mưa tức thời đạt ${rainRate.toFixed(1)} mm/h và độ ẩm không khí bão hòa (${humidity.toFixed(1)}%). Với lưu lượng mưa tập trung cao và áp suất khí quyển ${pressure.toFixed(1)} hPa, hệ số bão hòa đất đạt đỉnh, khả năng tự tiêu thoát của khu vực bị quá tải nghiêm trọng.`;
+    aiExplanation = `Mô hình AI ghi nhận áp suất khí quyển tụt sâu (${pressure.toFixed(1)} hPa) kết hợp độ ẩm không khí bão hòa (${humidity.toFixed(1)}%) và dữ liệu lượng mưa từ gàu lật (${rolling24hMm.toFixed(1)} mm, cường độ ${rainRate.toFixed(1)} mm/h). Hệ số bão hòa đất đạt đỉnh, khả năng tự tiêu thoát của khu vực bị quá tải nghiêm trọng.`;
     actionRecommendation = 'Cảnh báo khẩn: Chủ động kê cao đồ đạc, di dời phương tiện khỏi hầm/vùng trũng thấp. Tuyệt đối không cố gắng lội qua các đoạn đường ngập sâu hoặc dòng nước chảy xiết.';
   } else if (level === 'HIGH') {
-    aiExplanation = `Lượng mưa tích lũy (${rolling24hMm.toFixed(1)} mm) và cường độ mưa ${rainRate.toFixed(1)} mm/h đang tạo ra áp lực đáng kể lên hệ thống thu gom nước mặt. Độ ẩm không khí cao (${humidity.toFixed(1)}%) cho thấy mặt đất đã ẩm ướt kéo dài, nguy cơ ứ đọng nước cục bộ ở các hố trũng và lòng đường đang gia tăng.`;
+    aiExplanation = `Áp suất khí quyển giảm nhanh (${pressure.toFixed(1)} hPa) và độ ẩm không khí cao (${humidity.toFixed(1)}%) kết hợp lượng mưa gàu lật (${rolling24hMm.toFixed(1)} mm) tạo ra áp lực lớn lên hệ thống thu gom nước mặt. Nguy cơ ứ đọng nước cục bộ ở các hố trũng và lòng đường đang ở mức cao.`;
     actionRecommendation = 'Khuyến cáo: Chú ý quan sát khi lưu thông qua các tuyến phố trũng thấp; kiểm tra khơi thông nắp cống xung quanh khu vực sinh sống.';
   } else if (level === 'MODERATE') {
-    aiExplanation = `Trạm ghi nhận lượng mưa ở mức trung bình (${rolling24hMm.toFixed(1)} mm) với cường độ ${rainRate.toFixed(1)} mm/h. Tốc độ ngấm nước của đất và khả năng thoát nước của hạ tầng vẫn đang duy trì tải trọng, chưa xuất hiện ngập úng nghiêm trọng trên diện rộng.`;
-    actionRecommendation = 'Tiếp tục theo dõi diễn biến lượng mưa và xu hướng biến thiên khí áp từ cảm biến BMP180 trong các giờ tiếp theo.';
+    aiExplanation = `Độ ẩm không khí duy trì ở mức cao (${humidity.toFixed(1)}%) và khí áp biến thiên (${pressure.toFixed(1)} hPa). Dữ liệu gàu lật ghi nhận ${rolling24hMm.toFixed(1)} mm. Tốc độ ngấm nước của đất và khả năng thoát nước của hạ tầng đang chịu tải, cần chú ý tại các vùng trũng.`;
+    actionRecommendation = 'Tiếp tục theo dõi diễn biến lượng mưa từ gàu lật và xu hướng biến thiên khí áp từ cảm biến BMP180 trong các giờ tiếp theo.';
   } else {
     aiExplanation = `Chỉ số ngập lụt hiện tại ở mức THẤP (${score}%). Lượng mưa hôm nay (${todayMm.toFixed(2)} mm) và cường độ mưa tức thời (${rainRate.toFixed(1)} mm/h) hoàn toàn nằm trong ngưỡng an toàn tuyệt đối của hệ thống thoát nước tự nhiên và đô thị.`;
     actionRecommendation = 'Hiện trạng an toàn, không có nguy cơ ngập úng. Hệ thống cảm biến RainSense tiếp tục túc trực giám sát thời gian thực.';
