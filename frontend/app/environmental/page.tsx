@@ -23,7 +23,7 @@ import {
 } from 'recharts';
 import { api } from '@/lib/api';
 import { useTheme, useDemo } from '@/app/providers';
-import { DEMO_SCENARIOS, generateDemoChartSeries } from '@/lib/demo-scenarios';
+import { DEMO_SCENARIOS } from '@/lib/demo-scenarios';
 import { formatTimeVi, formatDateTimeVi } from '@/lib/utils';
 import {
   calculateDewPoint,
@@ -33,7 +33,7 @@ import {
 
 export default function EnvironmentalPage() {
   const { resolvedTheme } = useTheme();
-  const { isDemoMode, demoScenario, setDemoScenario, demoEnvironment } = useDemo();
+  const { isDemoMode, demoScenario, setDemoScenario, demoEnvironment, runtimePoints } = useDemo();
   const isDark = resolvedTheme === 'dark';
   const [range, setRange] = useState<'1h' | '6h' | '24h' | '7d'>('24h');
 
@@ -51,42 +51,34 @@ export default function EnvironmentalPage() {
     refetchInterval: 15000
   });
 
-  // Live series mapped
-  const liveChartData = useMemo(() => {
-    return series.map((m: any) => ({
+  // Biểu đồ tích lũy liên tục: giữ nguyên dữ liệu lịch sử cũ, chỉ nối thêm điểm mới nhất theo mode
+  const chartData = useMemo(() => {
+    const baseMapped = series.map((m: any) => ({
       time: formatTimeVi(m.timestamp),
       fullTime: formatDateTimeVi(m.timestamp),
+      timestamp: m.timestamp,
       temperature: m.temperature,
       humidity: m.humidity,
       pressure: m.pressure,
       dewPoint: m.dewPoint ?? calculateDewPoint(m.temperature, m.humidity),
       heatIndex: calculateHeatIndex(m.temperature, m.humidity)
     }));
-  }, [series]);
 
-  // Demo series matching scenario
-  const demoChartData = useMemo(() => {
-    if (!isDemoMode) return [];
-    const base = generateDemoChartSeries({
-      scenarioId: demoScenario,
-      timeRange: range,
-      currentEnv: demoEnvironment,
-      baseSeries: series
-    });
-    return base.map(p => ({
-      ...p,
-      heatIndex: calculateHeatIndex(p.temperature, p.humidity)
-    }));
-  }, [isDemoMode, demoScenario, range, demoEnvironment, series]);
+    if (!runtimePoints || runtimePoints.length === 0) {
+      return baseMapped;
+    }
 
-  const chartData = isDemoMode ? demoChartData : liveChartData;
+    const firstTime = new Date(runtimePoints[0].timestamp).getTime();
+    const historical = baseMapped.filter((p: any) => new Date(p.timestamp).getTime() < firstTime);
+    return [...historical, ...runtimePoints];
+  }, [series, runtimePoints]);
 
   // Min / Avg / Max statistics
   const demoStats = useMemo(() => {
-    if (!isDemoMode || demoChartData.length === 0) return null;
-    const temps = demoChartData.map(d => d.temperature);
-    const hums = demoChartData.map(d => d.humidity);
-    const press = demoChartData.map(d => d.pressure);
+    if (!isDemoMode || chartData.length === 0) return null;
+    const temps = chartData.map(d => d.temperature);
+    const hums = chartData.map(d => d.humidity);
+    const press = chartData.map(d => d.pressure);
 
     const calc = (arr: number[]) => ({
       current: arr[arr.length - 1],
@@ -103,7 +95,7 @@ export default function EnvironmentalPage() {
         trend: demoEnvironment.pressureTrend
       }
     };
-  }, [isDemoMode, demoChartData, demoEnvironment]);
+  }, [isDemoMode, chartData, demoEnvironment]);
 
   if (statsLoading || seriesLoading) {
     return (

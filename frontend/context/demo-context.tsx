@@ -1,14 +1,30 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { DemoScenarioId, DEMO_SCENARIOS, getDemoEnvironment, DemoEnvironmentData } from '@/lib/demo-scenarios';
+import { calculateDewPoint, calculateHeatIndex } from '@/lib/weather-calc';
+import { formatTimeVi, formatDateTimeVi } from '@/lib/utils';
 import { api } from '@/lib/api';
+
+export interface RuntimeChartPoint {
+  id: string;
+  timestamp: string;
+  time: string;
+  fullTime: string;
+  temperature: number;
+  humidity: number;
+  pressure: number;
+  dewPoint: number;
+  heatIndex?: number;
+  source: 'live' | 'demo';
+}
 
 interface DemoContextType {
   isDemoMode: boolean;
   demoScenario: DemoScenarioId;
   demoEnvironment: DemoEnvironmentData;
+  runtimePoints: RuntimeChartPoint[];
   setDemoMode: (enable: boolean) => void;
   setDemoScenario: (scenario: DemoScenarioId) => void;
   toggleDemoMode: () => void;
@@ -20,6 +36,7 @@ const DemoContext = createContext<DemoContextType>({
   isDemoMode: false,
   demoScenario: 'low',
   demoEnvironment: defaultEnv,
+  runtimePoints: [],
   setDemoMode: () => {},
   setDemoScenario: () => {},
   toggleDemoMode: () => {}
@@ -34,6 +51,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
   const [demoScenario, setDemoScenarioState] = useState<DemoScenarioId>('low');
   const [tick, setTick] = useState<number>(0);
+  const [runtimePoints, setRuntimePoints] = useState<RuntimeChartPoint[]>([]);
 
   // Load saved preferences
   useEffect(() => {
@@ -79,21 +97,69 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Update loop: Exactly 10 seconds per cycle (matching Live Mode sensor rate)
-  useEffect(() => {
-    if (!isDemoMode) return;
-
-    const interval = setInterval(() => {
-      setTick((t) => t + 1);
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [isDemoMode]);
-
   const demoEnvironment = useMemo(
     () => getDemoEnvironment(demoScenario, tick),
     [demoScenario, tick]
   );
+
+  const envRef = useRef({ isDemoMode, demoEnvironment });
+  useEffect(() => {
+    envRef.current = { isDemoMode, demoEnvironment };
+  }, [isDemoMode, demoEnvironment]);
+
+  // Chu kỳ ghi nhận biểu đồ 10 giây/lần (giữ nguyên dữ liệu cũ, chỉ nối thêm điểm mới nhất theo mode)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+
+      const { isDemoMode: currentIsDemo, demoEnvironment: currentDemoEnv } = envRef.current;
+      const now = new Date();
+      const iso = now.toISOString();
+
+      let temp: number | null = null;
+      let hum: number | null = null;
+      let press: number | null = null;
+      let source: 'live' | 'demo' = 'live';
+
+      if (currentIsDemo) {
+        temp = currentDemoEnv.temperature;
+        hum = currentDemoEnv.humidity;
+        press = currentDemoEnv.pressure;
+        source = 'demo';
+      } else {
+        const summary = queryClient.getQueryData<any>(['dashboardSummary']);
+        const latest = summary?.latestMeasurement;
+        if (latest && typeof latest.temperature === 'number') {
+          temp = latest.temperature;
+          hum = latest.humidity;
+          press = latest.pressure;
+          source = 'live';
+        }
+      }
+
+      if (temp !== null && hum !== null && press !== null) {
+        const pt: RuntimeChartPoint = {
+          id: `rt-${now.getTime()}`,
+          timestamp: iso,
+          time: formatTimeVi(iso),
+          fullTime: formatDateTimeVi(iso),
+          temperature: temp,
+          humidity: hum,
+          pressure: press,
+          dewPoint: calculateDewPoint(temp, hum),
+          heatIndex: calculateHeatIndex(temp, hum),
+          source
+        };
+
+        setRuntimePoints((prev) => {
+          const next = [...prev, pt];
+          return next.length > 120 ? next.slice(next.length - 120) : next;
+        });
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [queryClient]);
 
   return (
     <DemoContext.Provider
@@ -101,6 +167,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         isDemoMode,
         demoScenario,
         demoEnvironment,
+        runtimePoints,
         setDemoMode,
         setDemoScenario,
         toggleDemoMode

@@ -34,7 +34,7 @@ import {
 import { api } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { useTheme, useDemo } from '@/app/providers';
-import { DEMO_SCENARIOS, generateDemoChartSeries } from '@/lib/demo-scenarios';
+import { DEMO_SCENARIOS } from '@/lib/demo-scenarios';
 import { formatDateTimeVi, formatTimeVi } from '@/lib/utils';
 import {
   classifyPressureTrend,
@@ -46,7 +46,7 @@ import {
 export default function OverviewPage() {
   const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
-  const { isDemoMode, demoScenario, setDemoScenario, demoEnvironment } = useDemo();
+  const { isDemoMode, demoScenario, setDemoScenario, demoEnvironment, runtimePoints } = useDemo();
   const isDark = resolvedTheme === 'dark';
 
   const [timeRange, setTimeRange] = useState<'1h' | '6h' | '24h' | '7d' | '30d'>('24h');
@@ -172,30 +172,26 @@ export default function OverviewPage() {
     };
   }, [queryClient]);
 
-  // Format chart time labels (hỗ trợ hiển thị trực quan thông số demo theo kịch bản)
-  // BẮT BUỘC gọi Hook trước mọi câu lệnh return có điều kiện để tuân thủ React Rules of Hooks
-  const liveChartData = useMemo(() => {
-    return series.map((m: any) => ({
+  // Biểu đồ tích lũy liên tục: giữ nguyên dữ liệu lịch sử cũ, chỉ nối thêm điểm mới nhất theo mode
+  const chartData = useMemo(() => {
+    const baseMapped = series.map((m: any) => ({
       time: formatTimeVi(m.timestamp),
       fullTime: formatDateTimeVi(m.timestamp),
+      timestamp: m.timestamp,
       temperature: m.temperature,
       humidity: m.humidity,
       pressure: m.pressure,
       dewPoint: m.dewPoint ?? calculateDewPoint(m.temperature, m.humidity)
     }));
-  }, [series]);
 
-  const demoChartData = useMemo(() => {
-    if (!isDemoMode) return [];
-    return generateDemoChartSeries({
-      scenarioId: demoScenario,
-      timeRange,
-      currentEnv: demoEnvironment,
-      baseSeries: series
-    });
-  }, [isDemoMode, demoScenario, timeRange, demoEnvironment, series]);
+    if (!runtimePoints || runtimePoints.length === 0) {
+      return baseMapped;
+    }
 
-  const chartData = isDemoMode ? demoChartData : liveChartData;
+    const firstTime = new Date(runtimePoints[0].timestamp).getTime();
+    const historical = baseMapped.filter((p: any) => new Date(p.timestamp).getTime() < firstTime);
+    return [...historical, ...runtimePoints];
+  }, [series, runtimePoints]);
 
   if (isLoading && !summary) {
     return (
