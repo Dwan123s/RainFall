@@ -26,7 +26,8 @@ import {
   CartesianGrid
 } from 'recharts';
 import { api } from '@/lib/api';
-import { useTheme, useDemo } from '@/app/providers';
+import { useTheme } from '@/app/providers';
+import { useDemo } from '@/context/demo-context';
 import { DEMO_SCENARIOS } from '@/lib/demo-scenarios';
 import { formatDateTimeVi, formatTimeVi } from '@/lib/utils';
 import { RainDataAudit } from '@/components/RainDataAudit';
