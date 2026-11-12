@@ -36,6 +36,7 @@ import { getSocket } from '@/lib/socket';
 import { useTheme, useDemo } from '@/app/providers';
 import { DEMO_SCENARIOS } from '@/lib/demo-scenarios';
 import { formatDateTimeVi, formatTimeVi } from '@/lib/utils';
+import { TipIntervalAnalysis } from '@/components/TipIntervalAnalysis';
 import {
   classifyPressureTrend,
   getHumidityStatusVi,
@@ -773,88 +774,13 @@ export default function OverviewPage() {
           )}
         </section>
 
-        {/* SECTION E: System Health */}
-        <section className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4 transition-colors">
-          <div className="flex items-center justify-between border-b border-border pb-3">
-            <h3 className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Sức khỏe & Trạng thái phần cứng</span>
-            </h3>
-            <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
-              {latest ? `Cập nhật ${health?.lastSeenSecondsAgo}s trước` : 'Chờ kết nối thiết bị'}
-            </span>
-          </div>
-
-          <div className="space-y-3 text-xs">
-            {/* BMP180 & DHT11 sensor */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50">
-              <div className="flex items-center gap-2.5">
-                <Thermometer className="w-4 h-4 text-orange-500" />
-                <div>
-                  <div className="font-semibold text-slate-800 dark:text-slate-200">Cảm biến BMP180 (I2C) & DHT11 (GPIO)</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Khí áp (BMP180) • Nhiệt độ & Độ ẩm (DHT11)</div>
-                </div>
-              </div>
-              <span
-                className={`px-2.5 py-1 rounded-lg font-semibold border ${
-                  latest && !health?.isStale
-                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
-                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
-                }`}
-              >
-                {latest && !health?.isStale ? 'HOẠT ĐỘNG' : 'CHỜ KẾT NỐI'}
-              </span>
-            </div>
-
-            {/* Rain gauge Hall sensor */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50">
-              <div className="flex items-center gap-2.5">
-                <CloudRain className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
-                <div>
-                  <div className="font-semibold text-slate-800 dark:text-slate-200">Cảm biến lật gầu Hall A3144 (GPIO Interrupt)</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Đếm xung từ tính, khử nhiễu phần cứng</div>
-                </div>
-              </div>
-              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-semibold border border-emerald-500/30">
-                SẴN SÀNG
-              </span>
-            </div>
-
-            {/* MQTT Broker */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50">
-              <div className="flex items-center gap-2.5">
-                <Radio className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                <div>
-                  <div className="font-semibold text-slate-800 dark:text-slate-200">HiveMQ Cloud MQTT Broker (TLS Port 8883)</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Thu thập vi sai và cảnh báo khẩn cấp</div>
-                </div>
-              </div>
-              <span
-                className={`px-2.5 py-1 rounded-lg font-semibold border ${
-                  health?.mqttStatus === 'CONNECTED'
-                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
-                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
-                }`}
-              >
-                {health?.mqttStatus === 'CONNECTED' ? 'KẾT NỐI TLS' : 'CHỜ KẾT NỐI MQTT'}
-              </span>
-            </div>
-
-            {/* Backend & Database */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50">
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <div>
-                  <div className="font-semibold text-slate-800 dark:text-slate-200">Node.js Server & Socket.IO Engine</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">PostgreSQL / NeonDB ORM Layer</div>
-                </div>
-              </div>
-              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-semibold border border-emerald-500/30">
-                ỔN ĐỊNH
-              </span>
-            </div>
-          </div>
-        </section>
+        {/* SECTION E: TIP INTERVAL & RAIN DENSITY ANALYSIS */}
+        <TipIntervalAnalysis
+          rainfall={rainfall}
+          deviceId="RS-ESP32S3-01"
+          isDemoMode={isDemoMode}
+          demoScenario={demoScenario}
+        />
       </div>
     </div>
   );

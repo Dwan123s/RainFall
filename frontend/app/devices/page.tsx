@@ -10,6 +10,11 @@ import {
   MapPin,
   RotateCw,
   Sliders,
+  CheckCircle2,
+  Radio,
+  CloudRain,
+  Thermometer,
+  ShieldCheck,
   Terminal,
   Layers
 } from 'lucide-react';
@@ -29,6 +34,14 @@ export default function DevicesPage() {
   const [mqttIntervalInput, setMqttIntervalInput] = useState<number>(30);
 
   // Fetch device list
+  const { data: summary } = useQuery({
+    queryKey: ['dashboardSummary'],
+    queryFn: () => api.getDashboardSummary(),
+    refetchInterval: 10000
+  });
+  const health = summary?.systemHealth;
+  const latest = summary?.latestMeasurement;
+
   const { data: devices = [], isLoading } = useQuery({
     queryKey: ['devices'],
     queryFn: () => api.getDevices(),
@@ -319,6 +332,101 @@ export default function DevicesPage() {
           </div>
         </div>
       )}
+
+      {/* SỨC KHỎE & TRẠNG THÁI PHẦN CỨNG */}
+      <section className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4 transition-colors">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <h3 className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Sức khỏe & Trạng thái phần cứng</span>
+          </h3>
+          <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+            {latest ? `Cập nhật ${health?.lastSeenSecondsAgo ?? 0}s trước` : 'Chờ kết nối thiết bị'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+          {/* BMP180 & DHT11 sensor */}
+          <div className="flex flex-col justify-between p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <Thermometer className="w-5 h-5 text-orange-500 shrink-0" />
+              <div>
+                <div className="font-semibold text-slate-800 dark:text-slate-200">BMP180 & DHT11</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">I2C & GPIO Bus</div>
+              </div>
+            </div>
+            <div className="flex justify-between items-center pt-1 border-t border-slate-200/50 dark:border-slate-700/40">
+              <span className="text-[11px] text-slate-400">Trạng thái:</span>
+              <span
+                className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${
+                  latest && !health?.isStale
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
+                }`}
+              >
+                {latest && !health?.isStale ? 'HOẠT ĐỘNG' : 'CHỜ KẾT NỐI'}
+              </span>
+            </div>
+          </div>
+
+          {/* Rain gauge Hall sensor */}
+          <div className="flex flex-col justify-between p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <CloudRain className="w-5 h-5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+              <div>
+                <div className="font-semibold text-slate-800 dark:text-slate-200">Hall A3144 (Gàu lật)</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">GPIO Interrupt Đếm xung</div>
+              </div>
+            </div>
+            <div className="flex justify-between items-center pt-1 border-t border-slate-200/50 dark:border-slate-700/40">
+              <span className="text-[11px] text-slate-400">Trạng thái:</span>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold text-[10px] border border-emerald-500/30">
+                SẴN SÀNG
+              </span>
+            </div>
+          </div>
+
+          {/* MQTT Broker */}
+          <div className="flex flex-col justify-between p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <Radio className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
+              <div>
+                <div className="font-semibold text-slate-800 dark:text-slate-200">HiveMQ Cloud Broker</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">TLS Port 8883</div>
+              </div>
+            </div>
+            <div className="flex justify-between items-center pt-1 border-t border-slate-200/50 dark:border-slate-700/40">
+              <span className="text-[11px] text-slate-400">Trạng thái:</span>
+              <span
+                className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${
+                  health?.mqttStatus === 'CONNECTED'
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30'
+                }`}
+              >
+                {health?.mqttStatus === 'CONNECTED' ? 'KẾT NỐI TLS' : 'CHỜ KẾT NỐI MQTT'}
+              </span>
+            </div>
+          </div>
+
+          {/* Backend & Database */}
+          <div className="flex flex-col justify-between p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/50 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <div>
+                <div className="font-semibold text-slate-800 dark:text-slate-200">Node.js & PostgreSQL</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">Socket.IO & NeonDB</div>
+              </div>
+            </div>
+            <div className="flex justify-between items-center pt-1 border-t border-slate-200/50 dark:border-slate-700/40">
+              <span className="text-[11px] text-slate-400">Trạng thái:</span>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-bold text-[10px] border border-emerald-500/30">
+                ỔN ĐỊNH
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* MODAL CẤU HÌNH THIẾT BỊ */}
       {isConfigOpen && (
